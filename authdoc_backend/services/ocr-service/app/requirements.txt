@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pydantic
+paddleocr
+paddlepaddle
+python-multipart
+opencv-python
+numpy
+orjson

@@ -1,0 +1,17 @@
+{
+  "title": "AuthDoc System Metrics",
+  "panels": [
+    {
+      "title": "Queue Jobs",
+      "type": "graph"
+    },
+    {
+      "title": "OCR Latency",
+      "type": "graph"
+    },
+    {
+      "title": "Worker Throughput",
+      "type": "graph"
+    }
+  ]
+}
