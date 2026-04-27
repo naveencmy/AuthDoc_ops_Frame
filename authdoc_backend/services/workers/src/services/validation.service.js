@@ -1,4 +1,4 @@
-import db from "../../../shared/db/postgres.js"
+import db from "../../../../shared/db/postgres.js"
 
 export async function validateDocument(documentId) {
   const fields = await db.query(

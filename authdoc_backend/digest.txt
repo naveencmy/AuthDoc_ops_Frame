@@ -1,0 +1,2279 @@
+Directory structure:
+└── authdoc_backend/
+    ├── docker-compose.yml
+    ├── Dockerfile.worker
+    ├── package.json
+    ├── infrastructure/
+    │   ├── docker/
+    │   │   ├── api.Dockerfile
+    │   │   ├── ocr.Dockerfile
+    │   │   └── worker.Dockerfile
+    │   ├── monitoring/
+    │   │   ├── grafana-dashboard.json
+    │   │   └── prometheus.yml
+    │   └── redis/
+    │       └── redis.conf
+    ├── scripts/
+    │   ├── migrate-db.js
+    │   └── seed-db.js
+    ├── services/
+    │   ├── aip/
+    │   │   ├── Dockerfile
+    │   │   └── src/
+    │   │       ├── app.js
+    │   │       ├── server.js
+    │   │       ├── config/
+    │   │       │   ├── database.js
+    │   │       │   ├── env.js
+    │   │       │   ├── logger.js
+    │   │       │   └── redis.js
+    │   │       ├── controllers/
+    │   │       │   ├── batch.controller.js
+    │   │       │   ├── dashboard.controller.js
+    │   │       │   ├── document.controller.js
+    │   │       │   ├── export.controller.js
+    │   │       │   ├── schema.controller.js
+    │   │       │   └── settings.controller.js
+    │   │       ├── jobs/
+    │   │       │   ├── export.job.js
+    │   │       │   ├── extraction.job.js
+    │   │       │   ├── ocr.job.js
+    │   │       │   ├── validation.job.js
+    │   │       │   └── zip.job.js
+    │   │       ├── middleware/
+    │   │       │   ├── auth.middleware.js
+    │   │       │   ├── error.middleware.js
+    │   │       │   ├── request.logger.js
+    │   │       │   └── upload.middleware.js
+    │   │       ├── repositories/
+    │   │       │   ├── batch.repository.js
+    │   │       │   ├── document.repository.js
+    │   │       │   ├── export.repository.js
+    │   │       │   ├── schema.repository.js
+    │   │       │   └── settings.repository.js
+    │   │       ├── routes/
+    │   │       │   ├── batch.routes.js
+    │   │       │   ├── dashboard.routes.js
+    │   │       │   ├── document.routes.js
+    │   │       │   ├── export.routes.js
+    │   │       │   ├── schema.routes.js
+    │   │       │   └── settings.routes.js
+    │   │       ├── services/
+    │   │       │   ├── batch.service.js
+    │   │       │   ├── dashboard.service.js
+    │   │       │   ├── document.service.js
+    │   │       │   ├── export.service.js
+    │   │       │   ├── schema.service.js
+    │   │       │   └── settings.service.js
+    │   │       ├── utils/
+    │   │       │   ├── constants.js
+    │   │       │   ├── excel.utils.js
+    │   │       │   ├── file.utils.js
+    │   │       │   └── paination.js
+    │   │       └── validators/
+    │   │           ├── batch.validator.js
+    │   │           ├── export.validator.js
+    │   │           └── schema.validator.js
+    │   ├── ocr-service/
+    │   │   └── app/
+    │   │       ├── Dockerfile
+    │   │       ├── requirements.txt
+    │   │       ├── config/
+    │   │       │   └── settings.py
+    │   │       ├── models/
+    │   │       │   └── request_models.py
+    │   │       ├── routes/
+    │   │       │   └── ocr_routes.py
+    │   │       ├── services/
+    │   │       │   └── paddle_ocr.py
+    │   │       └── utils/
+    │   │           └── image_loader.py
+    │   └── workers/
+    │       └── src/
+    │           ├── worker.js
+    │           ├── config/
+    │           │   ├── logger.js
+    │           │   └── redis.js
+    │           ├── services/
+    │           │   ├── export.service.js
+    │           │   ├── extraction.service.js
+    │           │   ├── ocr.service.js
+    │           │   ├── validation.service.js
+    │           │   └── zip.service.js
+    │           ├── utils/
+    │           │   ├── ocr.client.js
+    │           │   ├── schema.mapper.js
+    │           │   └── unzip.utils.js
+    │           └── workers/
+    │               ├── export.worker.js
+    │               ├── extraction.worker.js
+    │               ├── ocr.worker.js
+    │               ├── validation.worker.js
+    │               └── zip.worker.js
+    ├── shared/
+    │   ├── constants/
+    │   │   ├── batchStatus.js
+    │   │   ├── documentStatus.js
+    │   │   └── queueNames.js
+    │   ├── db/
+    │   │   └── postgres.js
+    │   ├── logger/
+    │   │   └── logger.js
+    │   └── queues/
+    │       ├── export.queue.js
+    │       ├── extraction.queue.js
+    │       ├── ocr.queue.js
+    │       ├── validation.queue.js
+    │       └── zip.queue.js
+    └── storage/
+        └── uploads/
+            ├── 1776236048712_test.zip.zip
+            ├── 1776236398257_test.zip.zip
+            ├── 1776319971682_test.zip.zip
+            ├── 1776319989654_test.zip.zip
+            ├── 1776321696861_test.zip.zip
+            └── 1776340021363_test.zip.zip
+
+================================================
+FILE: docker-compose.yml
+================================================
+services:
+  redis:
+    image: redis:7
+    container_name: authdoc-redis
+    ports:
+      - "6379:6379"
+
+
+================================================
+FILE: Dockerfile.worker
+================================================
+FROM node:20
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+CMD ["node", "services/workers/src/worker.js"]
+
+
+================================================
+FILE: package.json
+================================================
+{
+  "name": "authdoc-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "worker": "node services/workers/src/worker.js",
+    "api": "node services/aip/src/server.js"
+  },
+  "dependencies": {
+    "axios": "^1.13.6",
+    "bullmq": "^5.71.1",
+    "cors": "^2.8.6",
+    "dayjs": "^1.11.20",
+    "dotenv": "^17.3.1",
+    "exceljs": "^4.4.0",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.3.1",
+    "helmet": "^8.1.0",
+    "ioredis": "^5.10.1",
+    "joi": "^18.1.1",
+    "jsonwebtoken": "^9.0.3",
+    "morgan": "^1.10.1",
+    "multer": "^2.1.1",
+    "pg": "^8.20.0",
+    "pino": "^10.3.1",
+    "pino-pretty": "^13.1.3",
+    "unzipper": "^0.12.3",
+    "uuid": "^13.0.0"
+  }
+}
+
+
+
+================================================
+FILE: infrastructure/docker/api.Dockerfile
+================================================
+FROM node:20-alpine
+WORKDIR /app
+COPY services/api/package*.json ./
+RUN npm install --production
+COPY services/api/src ./src
+EXPOSE 4000
+CMD ["node","src/server.js"]
+
+
+================================================
+FILE: infrastructure/docker/ocr.Dockerfile
+================================================
+FROM python:3.10-slim
+WORKDIR /app
+COPY services/ocr-service/app/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY services/ocr-service/app .
+EXPOSE 8000
+CMD ["uvicorn","main:app","--host","0.0.0.0","--port","8000"]
+
+
+================================================
+FILE: infrastructure/docker/worker.Dockerfile
+================================================
+FROM node:20-alpine
+WORKDIR /app
+COPY services/workers/package*.json ./
+RUN npm install --production
+COPY services/workers/src ./src
+CMD ["node","src/worker.js"]
+
+
+================================================
+FILE: infrastructure/monitoring/grafana-dashboard.json
+================================================
+{
+  "title": "AuthDoc System Metrics",
+  "panels": [
+    {
+      "title": "Queue Jobs",
+      "type": "graph"
+    },
+    {
+      "title": "OCR Latency",
+      "type": "graph"
+    },
+    {
+      "title": "Worker Throughput",
+      "type": "graph"
+    }
+  ]
+}
+
+
+================================================
+FILE: infrastructure/monitoring/prometheus.yml
+================================================
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+
+  - job_name: "api"
+
+    static_configs:
+      - targets: ["api:4000"]
+
+  - job_name: "workers"
+
+    static_configs:
+      - targets: ["worker:9100"]
+
+  - job_name: "ocr"
+
+    static_configs:
+      - targets: ["ocr:8000"]
+
+  - job_name: "redis"
+
+    static_configs:
+      - targets: ["redis:6379"]
+
+
+================================================
+FILE: infrastructure/redis/redis.conf
+================================================
+bind 0.0.0.0
+port 6379
+
+# persistence
+appendonly yes
+appendfsync everysec
+
+# memory management
+maxmemory 2gb
+maxmemory-policy allkeys-lru
+
+# networking
+tcp-backlog 511
+timeout 0
+tcp-keepalive 300
+
+# logging
+loglevel notice
+
+# slowlog
+slowlog-log-slower-than 10000
+slowlog-max-len 128
+
+# save snapshots
+save 900 1
+save 300 10
+save 60 10000
+
+
+================================================
+FILE: scripts/migrate-db.js
+================================================
+[Empty file]
+
+
+================================================
+FILE: scripts/seed-db.js
+================================================
+[Empty file]
+
+
+================================================
+FILE: services/aip/Dockerfile
+================================================
+[Empty file]
+
+
+================================================
+FILE: services/aip/src/app.js
+================================================
+import express from "express"
+import cors from "cors"
+import helmet from "helmet"
+import rateLimit from "express-rate-limit"
+import { requestLogger } from "./middleware/request.logger.js"
+import { errorMiddleware } from "./middleware/error.middleware.js"
+
+import batchRoutes from "./routes/batch.routes.js"
+import documentRoutes from "./routes/document.routes.js"
+import schemaRoutes from "./routes/schema.routes.js"
+import exportRoutes from "./routes/export.routes.js"
+import dashboardRoutes from "./routes/dashboard.routes.js"
+import settingsRoutes from "./routes/settings.routes.js"
+
+const app = express()
+app.use(helmet())
+app.use(rateLimit({
+    windowMs:15*60*1000,
+    max:100
+}))
+app.use(cors())
+app.use(express.json())
+app.use(requestLogger)
+app.use(express.json({
+    limit:"10mb"
+}))
+app.use(requestLogger)
+app.get("/health",(req,res)=>{
+    res.json({status:"ok"})
+})
+
+app.use("/api/batches", batchRoutes)
+app.use("/api/documents", documentRoutes)
+app.use("/api/schemas", schemaRoutes)
+app.use("/api/exports", exportRoutes)
+app.use("/api/dashboard", dashboardRoutes)
+app.use("/api/settings", settingsRoutes)
+app.use(errorMiddleware)
+export default app
+
+
+================================================
+FILE: services/aip/src/server.js
+================================================
+import app from "./app.js"
+import env from "./config/env.js"
+import logger from "./config/logger.js"
+
+app.listen(env.PORT, () => {
+
+  logger.info(`AuthDoc API running on port ${env.PORT}`)
+})
+
+
+================================================
+FILE: services/aip/src/config/database.js
+================================================
+import pkg from "pg"
+import env from "./env.js"
+
+const { Pool } = pkg
+export const db = new Pool({
+  connectionString: env.DATABASE_URL,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000
+})
+db.on("connect", () => {
+  console.log("PostgreSQL connected")
+})
+db.on("error", (err) => {
+  console.error("PostgreSQL error", err)
+})
+export default db
+
+
+================================================
+FILE: services/aip/src/config/env.js
+================================================
+import dotenv from "dotenv"
+
+dotenv.config()
+
+export const env = {
+  NODE_ENV: process.env.NODE_ENV || "development",
+  PORT: parseInt(process.env.PORT || "4000", 10),
+  DATABASE_URL: process.env.DATABASE_URL,
+  REDIS_HOST: process.env.REDIS_HOST || "localhost",
+  REDIS_PORT: parseInt(process.env.REDIS_PORT || "6379", 10),
+  STORAGE_PATH: process.env.STORAGE_PATH || "./storage",
+  OCR_SERVICE_URL: process.env.OCR_SERVICE_URL
+}
+export default env
+
+
+================================================
+FILE: services/aip/src/config/logger.js
+================================================
+import pino from "pino"
+const logger = pino({
+  level: process.env.LOG_LEVEL || "info",
+  transport: {
+    target: "pino-pretty"
+  }
+})
+export default logger
+
+
+================================================
+FILE: services/aip/src/config/redis.js
+================================================
+import IORedis from "ioredis"
+import env from "./env.js"
+
+const redis = new IORedis({
+  host: env.REDIS_HOST,
+  port: env.REDIS_PORT,
+  maxRetriesPerRequest: null
+})
+
+export default redis
+
+
+================================================
+FILE: services/aip/src/controllers/batch.controller.js
+================================================
+import { BatchService } from "../services/batch.service.js"
+import { batchSchema } from "../validators/batch.validator.js"
+
+export class BatchController {
+
+  static async createBatch(req,res,next){
+    try{
+      const { error, value } = batchSchema.validate(req.body)
+      if(error){
+        return res.status(400).json({
+          success:false,
+          message:error.message
+        })
+      }
+      if(!req.file){
+        return res.status(400).json({
+          success:false,
+          message:"ZIP file required"
+        })
+      }
+
+      const zipPath = req.file.path
+      const batch = await BatchService.createBatch(
+        value,
+        zipPath
+      )
+      res.status(201).json({
+        success:true,
+        data:batch
+      })
+    }catch(err){
+      next(err)
+    }
+  }
+
+  static async getBatch(req,res,next){
+    try{
+      const { batchId } = req.params
+      const batch = await BatchService.getBatch(batchId)
+      res.json({
+        success:true,
+        data:batch
+      })
+
+    }catch(err){
+      next(err)
+    }
+  }
+  static async listBatches(req,res,next){
+    try{
+      const limit = parseInt(req.query.limit || 20)
+      const offset = parseInt(req.query.offset || 0)
+      const batches = await BatchService.listBatches(
+        limit,
+        offset
+      )
+      res.json({
+        success:true,
+        data:batches
+      })
+    }catch(err){
+      next(err)
+    }
+  }
+}
+
+
+================================================
+FILE: services/aip/src/controllers/dashboard.controller.js
+================================================
+import { DashboardService } from "../services/dashboard.service.js"
+
+export class DashboardController {
+  static async getStats(req,res,next){
+    try{
+      const stats = await DashboardService.getStats()
+      res.json({
+        success:true,
+        data:stats
+      })
+    }catch(err){
+      next(err)
+    }
+  }
+}
+
+
+================================================
+FILE: services/aip/src/controllers/document.controller.js
+================================================
+import { DocumentService } from "../services/document.service.js"
+export class DocumentController {
+
+  static async getDocument(req,res,next){
+    try{
+      const { documentId } = req.params
+      const document = await DocumentService.getDocument(
+        documentId
+      )
+      res.json({
+        success:true,
+        data:document
+      })
+    }catch(err){
+      next(err)
+    }
+  }
+
+  static async getBatchDocuments(req,res,next){
+    try{
+      const { batchId } = req.params
+      const limit = parseInt(req.query.limit || 20)
+      const offset = parseInt(req.query.offset || 0)
+      const documents = await DocumentService.getBatchDocuments(
+        batchId,
+        limit,
+        offset
+      )
+      res.json({
+        success:true,
+        data:documents
+      })
+    }catch(err){
+      next(err)
+    }
+  }
+}
+
+
+================================================
+FILE: services/aip/src/controllers/export.controller.js
+================================================
+import { ExportService } from "../services/export.service.js"
+import { exportSchema } from "../validators/export.validator.js"
+
+export class ExportController {
+
+  static async createExport(req,res,next){
+    try{
+      const { error, value } = exportSchema.validate(req.body)
+      if(error){
+        return res.status(400).json({
+          success:false,
+          message:error.message
+        })
+      }
+      const exportRecord = await ExportService.createExport(value)
+      res.status(201).json({
+        success:true,
+        data:exportRecord
+      })
+    }catch(err){
+      next(err)
+    }
+  }
+  static async getExport(req,res,next){
+    try{
+      const { exportId } = req.params
+      const exportData = await ExportService.getExport(exportId)
+      res.json({
+        success:true,
+        data:exportData
+      })
+    }catch(err){
+      next(err)
+    }
+  }
+}
+
+
+================================================
+FILE: services/aip/src/controllers/schema.controller.js
+================================================
+import { SchemaService } from "../services/schema.service.js"
+import { schemaDefinition } from "../validators/schema.validator.js"
+
+export class SchemaController {
+
+  static async createSchema(req,res,next){
+    try{
+      const { error, value } = schemaDefinition.validate(req.body)
+      if(error){
+        return res.status(400).json({
+          success:false,
+          message:error.message
+        })
+      }
+      const schema = await SchemaService.createSchema(value)
+      res.status(201).json({
+        success:true,
+        data:schema
+      })
+    }catch(err){
+      next(err)
+    }
+  }
+
+  static async listSchemas(req,res,next){
+    try{
+      const schemas = await SchemaService.listSchemas()
+      res.json({
+        success:true,
+        data:schemas
+      })
+    }catch(err){
+      next(err)
+    }
+  }
+}
+
+
+================================================
+FILE: services/aip/src/controllers/settings.controller.js
+================================================
+import { SettingsService } from "../services/settings.service.js"
+export class SettingsController {
+  static async listSettings(req,res,next){
+    try{
+      const settings = await SettingsService.listSettings()
+      res.json({
+        success:true,
+        data:settings
+      })
+    }catch(err){
+      next(err)
+    }
+  }
+  static async updateSetting(req,res,next){
+    try{
+      const { key } = req.params
+      const { value } = req.body
+      const setting = await SettingsService.updateSetting(
+        key,
+        value
+      )
+      res.json({
+        success:true,
+        data:setting
+      })
+    }catch(err){
+      next(err)
+    }
+  }
+}
+
+
+================================================
+FILE: services/aip/src/jobs/export.job.js
+================================================
+import { Queue } from "bullmq"
+import redis from "../config/redis.js"
+import { QUEUES } from "../utils/constants.js"
+
+const exportQueue = new Queue(
+  QUEUES.EXPORT,
+  { connection:redis }
+)
+
+export async function addExportJob(data){
+  await exportQueue.add(
+    "generate_export",
+    data,
+    {
+      attempts:3,
+      backoff:5000
+    }
+  )
+}
+
+
+================================================
+FILE: services/aip/src/jobs/extraction.job.js
+================================================
+import { Queue } from "bullmq"
+import redis from "../config/redis.js"
+import { QUEUES } from "../utils/constants.js"
+
+const extractionQueue = new Queue(
+  QUEUES.EXTRACTION,
+  { connection:redis }
+)
+
+export async function addExtractionJob(data){
+  await extractionQueue.add(
+    "process_extraction",
+    data
+  )
+}
+
+
+================================================
+FILE: services/aip/src/jobs/ocr.job.js
+================================================
+import { Queue } from "bullmq"
+import redis from "../config/redis.js"
+import { QUEUES } from "../utils/constants.js"
+
+const ocrQueue = new Queue(
+  QUEUES.OCR,
+  { connection:redis }
+)
+export async function addOCRJob(data){
+
+  await ocrQueue.add(
+    "process_ocr",
+    data,
+    {
+      attempts:3,
+      backoff:2000
+    }
+  )
+
+}
+
+
+================================================
+FILE: services/aip/src/jobs/validation.job.js
+================================================
+import { Queue } from "bullmq"
+import redis from "../config/redis.js"
+import { QUEUES } from "../utils/constants.js"
+
+const validationQueue = new Queue(
+  QUEUES.VALIDATION,
+  { connection:redis }
+)
+export async function addValidationJob(data){
+  await validationQueue.add(
+    "process_validation",
+    data
+  )
+}
+
+
+================================================
+FILE: services/aip/src/jobs/zip.job.js
+================================================
+import { Queue } from "bullmq"
+import redis from "../config/redis.js"
+import { QUEUES } from "../utils/constants.js"
+
+// Create queue
+const zipQueue = new Queue(
+  QUEUES.ZIP,
+  { connection: redis }
+)
+
+// Add job to queue
+export async function addZipJob(data) {
+  try {
+    console.log("🚀 [ZIP JOB] Adding job to queue:", data)
+
+    const job = await zipQueue.add(
+      "process_zip",
+      data,
+      {
+        attempts: 5,
+        backoff: {
+          type: "exponential",
+          delay: 3000
+        },
+        removeOnComplete: true
+      }
+    )
+
+    console.log("✅ [ZIP JOB] Job added successfully. Job ID:", job.id)
+
+    return job
+  } catch (error) {
+    console.error("❌ [ZIP JOB] Failed to add job:", error)
+    throw error
+  }
+}
+
+
+================================================
+FILE: services/aip/src/middleware/auth.middleware.js
+================================================
+import jwt from "jsonwebtoken"
+import env from "../config/env.js"
+
+export function authMiddleware(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization
+    if (!authHeader) {
+      return res.status(401).json({
+        success:false,
+        message:"Authorization header missing"
+      })
+    }
+    const token = authHeader.split(" ")[1]
+    if (!token) {
+      return res.status(401).json({
+        success:false,
+        message:"Token missing"
+      })
+    }
+    const decoded = jwt.verify(
+      token,
+      env.JWT_SECRET
+    )
+    req.user = decoded
+    next()
+  } catch (err) {
+    return res.status(401).json({
+      success:false,
+      message:"Invalid or expired token"
+    })
+  }
+}
+
+export function requireRole(role){
+  return (req,res,next)=>{
+    if(!req.user){
+      return res.status(401).json({
+        success:false,
+        message:"Unauthorized"
+      })
+    }
+    if(req.user.role !== role){
+      return res.status(403).json({
+        success:false,
+        message:"Forbidden"
+      })
+    }
+    next()
+  }
+}
+
+
+================================================
+FILE: services/aip/src/middleware/error.middleware.js
+================================================
+import logger from "../config/logger.js"
+
+export function errorMiddleware(err, req, res, next) {
+  logger.error({
+    message: err.message,
+    stack: err.stack
+  })
+
+  const status = err.status || 500
+  res.status(status).json({
+    success:false,
+    message: err.message || "Internal server error"
+  })
+}
+
+
+================================================
+FILE: services/aip/src/middleware/request.logger.js
+================================================
+import logger from "../config/logger.js"
+
+export function requestLogger(req, res, next) {
+  const start = Date.now()
+  res.on("finish", () => {
+    const duration = Date.now() - start
+    logger.info({
+      method: req.method,
+      path: req.originalUrl,
+      status: res.statusCode,
+      duration
+    })
+  })
+  next()
+}
+
+
+================================================
+FILE: services/aip/src/middleware/upload.middleware.js
+================================================
+import multer from "multer"
+import path from "path"
+import env from "../config/env.js"
+
+const storage = multer.diskStorage({
+  destination:(req,file,cb)=>{
+    cb(null,path.join(env.STORAGE_PATH,"uploads"))
+  },
+  filename:(req,file,cb)=>{
+    const name = Date.now()+"_"+file.originalname
+    cb(null,name)
+  }
+})
+
+const fileFilter = (req,file,cb)=>{
+  if(!file.originalname.endsWith(".zip")){
+    return cb(new Error("Only ZIP files allowed"))
+  }
+  cb(null,true)
+}
+export const upload = multer({
+  storage,
+  fileFilter,
+  limits:{
+    fileSize: 1024*1024*500
+  }
+})
+
+
+================================================
+FILE: services/aip/src/repositories/batch.repository.js
+================================================
+import db from "../config/database.js"
+
+export class BatchRepository {
+  static async createBatch(data) {
+    const query = `
+      INSERT INTO batches
+      (
+        batch_name,
+        document_type,
+        priority,
+        total_documents,
+        processed_documents,
+        error_count,
+        status
+      )
+      VALUES ($1,$2,$3,0,0,0,'queued')
+      RETURNING *
+    `
+    const values = [
+      data.batch_name,
+      data.document_type,
+      data.priority
+    ]
+    const { rows } = await db.query(query, values)
+    return rows[0]
+  }
+  
+  static async getBatchById(batchId) {
+    const query = `
+      SELECT *
+      FROM batches
+      WHERE batch_id = $1
+    `
+    const { rows } = await db.query(query,[batchId])
+    return rows[0]
+  }
+
+  static async listBatches(limit, offset) {
+    const query = `
+      SELECT *
+      FROM batches
+      ORDER BY created_at DESC
+      LIMIT $1 OFFSET $2
+    `
+    const { rows } = await db.query(query,[limit,offset])
+    return rows
+  }
+}
+
+
+================================================
+FILE: services/aip/src/repositories/document.repository.js
+================================================
+import db from "../config/database.js"
+
+export class DocumentRepository {
+  static async getById(documentId) {
+    const query = `
+      SELECT *
+      FROM documents
+      WHERE document_id = $1
+    `
+    const { rows } = await db.query(query, [documentId])
+    return rows[0]
+  }
+  static async getByBatch(batchId, limit, offset) {
+    const query = `
+      SELECT *
+      FROM documents
+      WHERE batch_id = $1
+      ORDER BY created_at DESC
+      LIMIT $2 OFFSET $3
+    `
+    const { rows } = await db.query(query, [
+      batchId,
+      limit,
+      offset
+    ])
+    return rows
+  }
+
+}
+
+
+================================================
+FILE: services/aip/src/repositories/export.repository.js
+================================================
+import db from "../config/database.js"
+
+export class ExportRepository {
+  static async createExport(data) {
+    const query = `
+      INSERT INTO exports
+      (batch_id, export_type, status)
+      VALUES ($1,$2,'generating')
+      RETURNING *
+    `
+    const values = [
+      data.batch_id,
+      data.export_type
+    ]
+    const { rows } = await db.query(query, values)
+    return rows[0]
+  }
+  static async updateExportStatus(exportId, status, filePath) {
+
+  const query = `
+    UPDATE exports
+    SET status = $1,
+        file_path = $2
+    WHERE export_id = $3
+    RETURNING *
+  `
+
+  const { rows } = await db.query(query,[status,filePath,exportId])
+
+  return rows[0]
+
+}
+
+}
+
+
+
+================================================
+FILE: services/aip/src/repositories/schema.repository.js
+================================================
+import db from "../config/database.js"
+
+export class SchemaRepository {
+  static async createSchema(data) {
+    const query = `
+      INSERT INTO schema_definitions
+      (document_type, language, schema_version, status)
+      VALUES ($1,$2,$3,'active')
+      RETURNING *
+    `
+    const values = [
+      data.document_type,
+      data.language,
+      data.schema_version
+    ]
+    const { rows } = await db.query(query, values)
+    return rows[0]
+  }
+  static async listSchemas() {
+    const query = `
+      SELECT *
+      FROM schema_definitions
+      ORDER BY created_at DESC
+    `
+    const { rows } = await db.query(query)
+    return rows
+  }
+
+}
+
+
+================================================
+FILE: services/aip/src/repositories/settings.repository.js
+================================================
+import db from "../config/database.js"
+
+export class SettingsRepository {
+  static async listSettings() {
+    const query = `
+      SELECT *
+      FROM system_settings
+    `
+    const { rows } = await db.query(query)
+    return rows
+  }
+  static async updateSetting(key, value) {
+    const query = `
+      UPDATE system_settings
+      SET setting_value = $1,
+          updated_at = NOW()
+      WHERE setting_key = $2
+      RETURNING *
+    `
+    const { rows } = await db.query(query, [value, key])
+    return rows[0]
+  }
+
+}
+
+
+================================================
+FILE: services/aip/src/routes/batch.routes.js
+================================================
+import express from "express"
+import { BatchController } from "../controllers/batch.controller.js"
+import { upload } from "../middleware/upload.middleware.js"
+
+const router = express.Router()
+router.post(
+  "/upload",
+  upload.single("zip_file"),
+  BatchController.createBatch
+)
+export default router
+
+
+================================================
+FILE: services/aip/src/routes/dashboard.routes.js
+================================================
+import express from "express"
+import { DashboardController } from "../controllers/dashboard.controller.js"
+
+const router = express.Router()
+router.get("/stats",DashboardController.getStats)
+export default router
+
+
+================================================
+FILE: services/aip/src/routes/document.routes.js
+================================================
+import express from "express"
+import { DocumentController } from "../controllers/document.controller.js"
+
+const router = express.Router()
+
+router.get("/:documentId",DocumentController.getDocument)
+router.get("/batch/:batchId",DocumentController.getBatchDocuments)
+export default router
+
+
+================================================
+FILE: services/aip/src/routes/export.routes.js
+================================================
+import express from "express"
+import { ExportController } from "../controllers/export.controller.js"
+
+const router = express.Router()
+router.post("/",ExportController.createExport)
+router.get("/:exportId",ExportController.getExport)
+export default router
+
+
+================================================
+FILE: services/aip/src/routes/schema.routes.js
+================================================
+import express from "express"
+import { SchemaController } from "../controllers/schema.controller.js"
+
+const router = express.Router()
+router.post("/",SchemaController.createSchema)
+router.get("/",SchemaController.listSchemas)
+export default router
+
+
+================================================
+FILE: services/aip/src/routes/settings.routes.js
+================================================
+import express from "express"
+import { SettingsController } from "../controllers/settings.controller.js"
+
+const router = express.Router()
+router.get("/",SettingsController.listSettings)
+router.put("/:key",SettingsController.updateSetting)
+export default router
+
+
+================================================
+FILE: services/aip/src/services/batch.service.js
+================================================
+import { BatchRepository } from "../repositories/batch.repository.js"
+import { addZipJob } from "../jobs/zip.job.js"
+
+export class BatchService {
+
+  // Create batch + trigger worker
+  static async createBatch(data, zipPath) {
+    try {
+      console.log("📦 [BATCH] Creating batch with data:", data)
+
+      // Step 1: Create batch in DB
+      const batch = await BatchRepository.createBatch(data)
+
+      console.log("✅ [BATCH] Batch created:", batch)
+
+      // Step 2: Add job to queue
+      try {
+        console.log("🚀 [BATCH] Sending job to ZIP queue...")
+
+        await addZipJob({
+          batchId: batch.batch_id,
+          zipPath
+        })
+
+        console.log("✅ [BATCH] Job sent to queue successfully")
+
+      } catch (jobError) {
+        console.error("❌ [BATCH] Failed to send job:", jobError)
+      }
+
+      return batch
+
+    } catch (error) {
+      console.error("❌ [BATCH] Failed to create batch:", error)
+      throw error
+    }
+  }
+
+  static async getBatch(batchId) {
+    const batch = await BatchRepository.getBatchById(batchId)
+
+    if (!batch) {
+      throw new Error("Batch not found")
+    }
+
+    return batch
+  }
+
+  static async listBatches(limit, offset) {
+    return BatchRepository.listBatches(limit, offset)
+  }
+}
+
+
+================================================
+FILE: services/aip/src/services/dashboard.service.js
+================================================
+import db from "../config/database.js"
+
+export class DashboardService {
+  static async getStats() {
+    const batchCountQuery = `
+      SELECT COUNT(*) AS total_batches
+      FROM batches
+    `
+    const documentCountQuery = `
+      SELECT COUNT(*) AS total_documents
+      FROM documents
+    `
+    const verifiedQuery = `
+      SELECT COUNT(*) AS verified_documents
+      FROM documents
+      WHERE validation_status = 'VERIFIED'
+    `
+    const flaggedQuery = `
+      SELECT COUNT(*) AS flagged_documents
+      FROM documents
+      WHERE validation_status = 'FLAGGED'
+    `
+    const [
+      batchCount,
+      docCount,
+      verified,
+      flagged
+    ] = await Promise.all([
+      db.query(batchCountQuery),
+      db.query(documentCountQuery),
+      db.query(verifiedQuery),
+      db.query(flaggedQuery)
+    ])
+    return {
+      total_batches: batchCount.rows[0].total_batches,
+      total_documents: docCount.rows[0].total_documents,
+      verified_documents: verified.rows[0].verified_documents,
+      flagged_documents: flagged.rows[0].flagged_documents
+    }
+  }
+}
+
+
+================================================
+FILE: services/aip/src/services/document.service.js
+================================================
+import { DocumentRepository } from "../repositories/document.repository.js"
+
+export class DocumentService {
+  static async getDocument(documentId) {
+    const doc = await DocumentRepository.getById(documentId)
+    if (!doc) {
+      throw new Error("Document not found")
+    }
+    return doc
+  }
+  static async getBatchDocuments(batchId, limit, offset) {
+    return DocumentRepository.getByBatch(
+      batchId,
+      limit,
+      offset
+    )
+  }
+}
+
+
+================================================
+FILE: services/aip/src/services/export.service.js
+================================================
+import { ExportRepository } from "../repositories/export.repository.js"
+import { addExportJob } from "../jobs/export.job.js"
+
+export class ExportService {
+  static async createExport(data) {
+    const record = await ExportRepository.createExport(data)
+    await addExportJob({
+      exportId: record.export_id,
+      batchId: record.batch_id
+    })
+    return record
+  }
+
+  static async getExport(exportId) {
+    const record = await ExportRepository.getExportById(exportId)
+    if (!record) {
+      throw new Error("Export not found")
+    }
+    return record
+  }
+}
+
+
+================================================
+FILE: services/aip/src/services/schema.service.js
+================================================
+import { SchemaRepository } from "../repositories/schema.repository.js"
+
+export class SchemaService {
+  static async createSchema(data) {
+    return SchemaRepository.createSchema(data)
+  }
+  static async listSchemas() {
+    return SchemaRepository.listSchemas()
+  }
+
+}
+
+
+================================================
+FILE: services/aip/src/services/settings.service.js
+================================================
+import { SettingsRepository } from "../repositories/settings.repository.js"
+
+export class SettingsService {
+  static async listSettings() {
+    return SettingsRepository.listSettings()
+  }
+  static async updateSetting(key, value) {
+    return SettingsRepository.updateSetting(key, value)
+  }
+}
+
+
+================================================
+FILE: services/aip/src/utils/constants.js
+================================================
+export const DOCUMENT_STATUS = {
+  VERIFIED: "VERIFIED",
+  FLAGGED: "FLAGGED",
+  LOW_CONFIDENCE: "LOW_CONFIDENCE",
+  MISSING: "MISSING"
+}
+export const BATCH_STATUS = {
+  QUEUED: "queued",
+  PROCESSING: "processing",
+  COMPLETED: "completed",
+  FAILED: "failed"
+}
+export const QUEUES = {
+  ZIP: "zip_queue",
+  OCR: "ocr_queue",
+  EXTRACTION: "extraction_queue",
+  VALIDATION: "validation_queue",
+  EXPORT: "export_queue"
+}
+
+
+================================================
+FILE: services/aip/src/utils/excel.utils.js
+================================================
+import ExcelJS from "exceljs"
+
+export async function generateExcel(filePath, rows){
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet("documents")
+  if(rows.length === 0){
+    await workbook.xlsx.writeFile(filePath)
+    return
+  }
+  sheet.columns = Object.keys(rows[0]).map(key=>({
+    header:key,
+    key:key
+  }))
+  rows.forEach(row=>{
+    sheet.addRow(row)
+  })
+  await workbook.xlsx.writeFile(filePath)
+}
+
+
+================================================
+FILE: services/aip/src/utils/file.utils.js
+================================================
+import fs from "fs"
+import path from "path"
+import env from "../config/env.js"
+
+export function ensureDir(dirPath) {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true })
+  }
+}
+
+export function getBatchStoragePath(batchId) {
+  const dir = path.join(env.STORAGE_PATH, "uploads", "batches", batchId)
+  ensureDir(dir)
+  return dir
+}
+
+
+================================================
+FILE: services/aip/src/utils/paination.js
+================================================
+export function getPagination(query) {
+
+  const page = Math.max(parseInt(query.page || 1), 1)
+  const limit = Math.min(parseInt(query.limit || 20), 100)
+  const offset = (page - 1) * limit
+  return { page, limit, offset }
+}
+
+
+================================================
+FILE: services/aip/src/validators/batch.validator.js
+================================================
+import Joi from "joi"
+
+export const batchSchema = Joi.object({
+
+  batch_name: Joi.string().required(),
+
+  document_type: Joi.string()
+    .valid("birth", "marriage", "death")
+    .required(),
+
+  priority: Joi.string()
+    .valid("low", "normal", "high")
+    .default("normal")
+
+})
+
+
+================================================
+FILE: services/aip/src/validators/export.validator.js
+================================================
+import Joi from "joi"
+
+export const exportSchema = Joi.object({
+
+  batch_id: Joi.string().uuid().required(),
+
+  export_type: Joi.string()
+    .valid("excel")
+    .required()
+
+})
+
+
+================================================
+FILE: services/aip/src/validators/schema.validator.js
+================================================
+import Joi from "joi"
+
+export const schemaDefinition = Joi.object({
+  document_type:Joi.string()
+    .valid("birth","marriage","death")
+    .required(),
+  language:Joi.string()
+    .length(2)
+    .required(),
+  schema_version:Joi.string()
+    .required()
+
+})
+
+
+================================================
+FILE: services/ocr-service/app/Dockerfile
+================================================
+[Empty file]
+
+
+================================================
+FILE: services/ocr-service/app/requirements.txt
+================================================
+fastapi
+uvicorn
+pydantic
+paddleocr
+paddlepaddle
+python-multipart
+opencv-python
+numpy
+orjson
+
+
+================================================
+FILE: services/ocr-service/app/config/settings.py
+================================================
+import os
+class Settings:
+    OCR_LANG = os.getenv("OCR_LANG", "fr")
+    OCR_USE_GPU = os.getenv("OCR_USE_GPU", "false").lower() == "true"
+    OCR_DET_LIMIT_SIDE_LEN = int(
+        os.getenv("OCR_DET_LIMIT_SIDE_LEN", 960)
+    )
+settings = Settings()
+
+
+================================================
+FILE: services/ocr-service/app/models/request_models.py
+================================================
+from pydantic import BaseModel
+class OCRRequest(BaseModel):
+    image_path: str
+
+
+================================================
+FILE: services/ocr-service/app/routes/ocr_routes.py
+================================================
+from fastapi import APIRouter, HTTPException
+from models.request_models import OCRRequest
+from services.paddle_ocr import ocr_service
+from utils.image_loader import load_image
+
+router = APIRouter()
+@router.post("/extract")
+async def extract_text(req: OCRRequest):
+    try:
+        image = load_image(req.image_path)
+        result = ocr_service.extract_text(image)
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+
+================================================
+FILE: services/ocr-service/app/services/paddle_ocr.py
+================================================
+from paddleocr import PaddleOCR
+from config.settings import settings
+class OCRService:
+    def __init__(self):
+        self.ocr = PaddleOCR(
+            use_angle_cls=True,
+            lang=settings.OCR_LANG,
+            use_gpu=settings.OCR_USE_GPU
+        )
+    def extract_text(self, image):
+        result = self.ocr.ocr(image)
+        texts = []
+        confidences = []
+        for line in result:
+            text = line[1][0]
+            conf = line[1][1]
+            texts.append(text)
+            confidences.append(conf)
+        raw_text = " ".join(texts)
+        avg_conf = sum(confidences) / len(confidences) if confidences else 0
+        return {
+            "raw_text": raw_text,
+            "avg_confidence": avg_conf
+        }
+ocr_service = OCRService()
+
+
+================================================
+FILE: services/ocr-service/app/utils/image_loader.py
+================================================
+import cv2
+
+def load_image(path: str):
+    image = cv2.imread(path)
+    if image is None:
+        raise ValueError("Image could not be loaded")
+    return image
+
+
+================================================
+FILE: services/workers/src/worker.js
+================================================
+import "dotenv/config"
+import "./workers/zip.worker.js"
+import "./workers/ocr.worker.js"
+import "./workers/extraction.worker.js"
+import "./workers/validation.worker.js"
+import "./workers/export.worker.js"
+
+console.log("AuthDoc Workers started")
+
+
+console.log("DB URL:", process.env.DATABASE_URL)
+
+
+================================================
+FILE: services/workers/src/config/logger.js
+================================================
+import pino from "pino"
+
+const logger = pino({
+  level: "info",
+  transport: {
+    target: "pino-pretty"
+  }
+})
+
+export default logger
+
+
+================================================
+FILE: services/workers/src/config/redis.js
+================================================
+import IORedis from "ioredis"
+
+const redis = new IORedis({
+  host: "127.0.0.1",   // âœ… FIX
+  port: 6379,
+  maxRetriesPerRequest: null
+})
+
+export default redis
+
+
+================================================
+FILE: services/workers/src/services/export.service.js
+================================================
+import db from "../../../../shared/db/postgres.js"
+import { generateExcel } from "../../../aip/src/utils/excel.utils.js"
+
+export async function generateBatchExport(exportId, batchId) {
+  const docs = await db.query(
+    `SELECT * FROM documents
+     WHERE batch_id=$1`,
+    [batchId]
+  )
+
+  const filePath = `storage/exports/${exportId}.xlsx`
+
+  await generateExcel(filePath, docs.rows)
+
+  await db.query(
+    `UPDATE exports
+     SET file_path=$1,status='completed'
+     WHERE export_id=$2`,
+    [filePath, exportId]
+  )
+}
+
+
+================================================
+FILE: services/workers/src/services/extraction.service.js
+================================================
+import db from "../../../../shared/db/postgres.js"
+import { extractFields } from "../utils/schema.mapper.js"
+import { addValidationJob } from "../../../../shared/queues/validation.queue.js"
+
+export async function processExtraction(documentId, rawText) {
+  const schemaFields = await db.query(
+    `SELECT * FROM schema_fields`
+  )
+  const fields = extractFields(rawText, schemaFields.rows)
+  for (const f of fields) {
+    await db.query(
+      `INSERT INTO extracted_fields
+       (document_id,field_name,field_value,confidence_score)
+       VALUES($1,$2,$3,$4)`,
+      [documentId, f.field_name, f.field_value, f.confidence_score]
+    )
+  }
+  await addValidationJob({
+    documentId
+  })
+}
+
+
+================================================
+FILE: services/workers/src/services/ocr.service.js
+================================================
+import { runOCR } from "../utils/ocr.client.js"
+import db from "../../../../shared/db/postgres.js"
+import { addExtractionJob } from "../../../../shared/queues/extraction.queue.js"
+
+export async function processOCR(documentId, imagePath) {
+  const result = await runOCR(imagePath)
+  await db.query(
+    `INSERT INTO ocr_results(document_id,raw_text,avg_confidence)
+     VALUES($1,$2,$3)`,
+    [documentId, result.raw_text, result.avg_confidence]
+  )
+  await addExtractionJob({
+    documentId,
+    rawText: result.raw_text
+  })
+}
+
+
+================================================
+FILE: services/workers/src/services/validation.service.js
+================================================
+import db from "../../../../shared/db/postgres.js"
+
+export async function validateDocument(documentId) {
+  const fields = await db.query(
+    `SELECT * FROM extracted_fields
+     WHERE document_id=$1`,
+    [documentId]
+  )
+  let status = "VERIFIED"
+  for (const f of fields.rows) {
+    if (!f.field_value) {
+      status = "MISSING"
+      break
+    }
+    if (f.confidence_score < 0.7) {
+      status = "LOW_CONFIDENCE"
+    }
+  }
+  await db.query(
+    `UPDATE documents
+     SET validation_status=$1
+     WHERE document_id=$2`,
+    [status, documentId]
+  )
+}
+
+
+================================================
+FILE: services/workers/src/services/zip.service.js
+================================================
+import { unzipImages } from "../utils/unzip.utils.js"
+import { addOCRJob } from "../../../../shared/queues/ocr.queue.js"
+import db from "../../../../shared/db/postgres.js"
+
+export async function processZip(batchId, zipPath) {
+  const outputDir = `storage/uploads/batches/${batchId}`
+  const images = await unzipImages(zipPath, outputDir)
+  for (const image of images) {
+    const doc = await db.query(
+      `INSERT INTO documents(batch_id,file_path)
+       VALUES($1,$2)
+       RETURNING document_id`,
+      [batchId, image]
+    )
+    await addOCRJob({
+      documentId: doc.rows[0].document_id,
+      imagePath: image
+    })
+  }
+}
+
+
+================================================
+FILE: services/workers/src/utils/ocr.client.js
+================================================
+import axios from "axios"
+
+export async function runOCR(imagePath) {
+  const response = await axios.post(
+    process.env.OCR_SERVICE_URL + "/extract",
+    {
+      image_path: imagePath
+    }
+  )
+  return response.data
+}
+
+
+================================================
+FILE: services/workers/src/utils/schema.mapper.js
+================================================
+export function extractFields(rawText, schemaFields) {
+  const results = []
+  for (const field of schemaFields) {
+    const keyword = field.mapping_keywords
+    const regex = new RegExp(keyword + "\\s*(.*)", "i")
+    const match = rawText.match(regex)
+    if (match) {
+      results.push({
+        field_name: field.field_name,
+        field_value: match[1].trim(),
+        confidence_score: 0.8
+      })
+    } else {
+      results.push({
+        field_name: field.field_name,
+        field_value: null,
+        confidence_score: 0
+      })
+    }
+  }
+  return results
+}
+
+
+================================================
+FILE: services/workers/src/utils/unzip.utils.js
+================================================
+import fs from "fs"
+import unzipper from "unzipper"
+import path from "path"
+
+export async function unzipImages(zipPath, outputDir) {
+  const imagePaths = []
+
+  // ensure base output directory exists
+  fs.mkdirSync(outputDir, { recursive: true })
+
+  await fs.createReadStream(zipPath)
+    .pipe(unzipper.Parse())
+    .on("entry", entry => {
+      const fileName = entry.path
+
+      if (/\.(jpg|jpeg|png|tiff)$/i.test(fileName)) {
+        const outPath = path.join(outputDir, fileName)
+
+        // ensure nested directories exist
+        fs.mkdirSync(path.dirname(outPath), { recursive: true })
+
+        entry.pipe(fs.createWriteStream(outPath))
+        imagePaths.push(outPath)
+      } else {
+        entry.autodrain()
+      }
+    })
+    .promise()
+
+  return imagePaths
+}
+
+
+================================================
+FILE: services/workers/src/workers/export.worker.js
+================================================
+import { Worker } from "bullmq"
+import redis from "../config/redis.js"
+import { generateBatchExport } from "../services/export.service.js"
+
+new Worker(
+  "export_queue",
+  async job => {
+    const { exportId, batchId } = job.data
+    await generateBatchExport(exportId, batchId)
+  },
+  { connection: redis }
+)
+
+
+================================================
+FILE: services/workers/src/workers/extraction.worker.js
+================================================
+import { Worker } from "bullmq"
+import redis from "../config/redis.js"
+import { processExtraction } from "../services/extraction.service.js"
+
+const worker = new Worker(
+  "extraction_queue",
+  async job => {
+    console.log("[EXTRACTION] picked job:", job.id, job.data)
+
+    const { documentId, rawText } = job.data
+    await processExtraction(documentId, rawText)
+
+    console.log("[EXTRACTION] completed job:", job.id)
+  },
+  { connection: redis }
+)
+
+worker.on("completed", job => {
+  console.log("[EXTRACTION] worker completed:", job.id)
+})
+
+worker.on("failed", (job, err) => {
+  console.error("[EXTRACTION] worker failed:", job?.id, err.message)
+})
+
+worker.on("error", err => {
+  console.error("[EXTRACTION] worker error:", err.message)
+})
+
+
+================================================
+FILE: services/workers/src/workers/ocr.worker.js
+================================================
+import { Worker } from "bullmq"
+import redis from "../config/redis.js"
+import { processOCR } from "../services/ocr.service.js"
+
+const worker = new Worker(
+  "ocr_queue",
+  async job => {
+    console.log("[OCR] picked job:", job.id, job.data)
+
+    const { documentId, imagePath } = job.data
+    await processOCR(documentId, imagePath)
+
+    console.log("[OCR] completed job:", job.id)
+  },
+  { connection: redis }
+)
+
+worker.on("completed", job => {
+  console.log("[OCR] worker completed:", job.id)
+})
+
+worker.on("failed", (job, err) => {
+  console.error("[OCR] worker failed:", job?.id, err.message)
+})
+
+worker.on("error", err => {
+  console.error("[OCR] worker error:", err.message)
+})
+
+
+================================================
+FILE: services/workers/src/workers/validation.worker.js
+================================================
+import { Worker } from "bullmq"
+import redis from "../config/redis.js"
+import { validateDocument } from "../services/validation.service.js"
+
+const worker = new Worker(
+  "validation_queue",
+  async job => {
+    console.log("[VALIDATION] picked job:", job.id, job.data)
+
+    const { documentId } = job.data
+    await validateDocument(documentId)
+
+    console.log("[VALIDATION] completed job:", job.id)
+  },
+  { connection: redis }
+)
+
+worker.on("completed", job => {
+  console.log("[VALIDATION] worker completed:", job.id)
+})
+
+worker.on("failed", (job, err) => {
+  console.error("[VALIDATION] worker failed:", job?.id, err.message)
+})
+
+worker.on("error", err => {
+  console.error("[VALIDATION] worker error:", err.message)
+})
+
+
+================================================
+FILE: services/workers/src/workers/zip.worker.js
+================================================
+import { Worker } from "bullmq"
+import redis from "../config/redis.js"
+import { processZip } from "../services/zip.service.js"
+
+const worker = new Worker(
+  "zip_queue",
+  async job => {
+    console.log("[ZIP] picked job:", job.id, job.data)
+
+    const { batchId, zipPath } = job.data
+    await processZip(batchId, zipPath)
+
+    console.log("[ZIP] completed job:", job.id)
+  },
+  { connection: redis }
+)
+
+worker.on("completed", job => {
+  console.log("[ZIP] worker completed:", job.id)
+})
+
+worker.on("failed", (job, err) => {
+  console.error("[ZIP] worker failed:", job?.id, err.message)
+})
+
+worker.on("error", err => {
+  console.error("[ZIP] worker error:", err.message)
+})
+
+
+================================================
+FILE: shared/constants/batchStatus.js
+================================================
+export const BATCH_STATUS = {
+  QUEUED: "queued",
+  PROCESSING: "processing",
+  COMPLETED: "completed",
+  FAILED: "failed"
+}
+
+export default BATCH_STATUS
+
+
+================================================
+FILE: shared/constants/documentStatus.js
+================================================
+export const DOCUMENT_STATUS = {
+  VERIFIED: "VERIFIED",
+  FLAGGED: "FLAGGED",
+  LOW_CONFIDENCE: "LOW_CONFIDENCE",
+  MISSING: "MISSING"
+}
+
+export default DOCUMENT_STATUS
+
+
+================================================
+FILE: shared/constants/queueNames.js
+================================================
+export const QUEUE_NAMES = {
+  ZIP: "zip_queue",
+  OCR: "ocr_queue",
+  EXTRACTION: "extraction_queue",
+  VALIDATION: "validation_queue",
+  EXPORT: "export_queue"
+}
+export default QUEUE_NAMES
+
+
+================================================
+FILE: shared/db/postgres.js
+================================================
+import pkg from "pg"
+
+const { Pool } = pkg
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 50,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000
+})
+pool.on("connect", () => {
+  console.log("PostgreSQL connected")
+})
+
+pool.on("error", (err) => {
+  console.error("PostgreSQL error", err)
+})
+export default pool
+
+
+================================================
+FILE: shared/logger/logger.js
+================================================
+import pino from "pino"
+
+const logger = pino({
+  level: process.env.LOG_LEVEL || "info",
+  transport: {
+    target: "pino-pretty"
+  }
+})
+export default logger
+
+
+================================================
+FILE: shared/queues/export.queue.js
+================================================
+import { Queue } from "bullmq"
+import redis from "../../services/workers/src/config/redis.js"
+import { QUEUE_NAMES } from "../constants/queueNames.js"
+
+export const exportQueue = new Queue(
+  QUEUE_NAMES.EXPORT,
+  { connection: redis }
+)
+
+export async function addExportJob(data) {
+  await exportQueue.add(
+    "generate_export",
+    data,
+    {
+      attempts: 3,
+      backoff: 5000
+    }
+  )
+}
+
+
+================================================
+FILE: shared/queues/extraction.queue.js
+================================================
+import { Queue } from "bullmq"
+import redis from "../../services/workers/src/config/redis.js"
+import { QUEUE_NAMES } from "../constants/queueNames.js"
+
+export const extractionQueue = new Queue(
+  QUEUE_NAMES.EXTRACTION,
+  { connection: redis }
+)
+
+export async function addExtractionJob(data) {
+  await extractionQueue.add(
+    "process_extraction",
+    data
+  )
+}
+
+
+================================================
+FILE: shared/queues/ocr.queue.js
+================================================
+import { Queue } from "bullmq"
+import redis from "../../services/workers/src/config/redis.js"
+import { QUEUE_NAMES } from "../constants/queueNames.js"
+
+export const ocrQueue = new Queue(
+  QUEUE_NAMES.OCR,
+  { connection: redis }
+)
+
+export async function addOCRJob(data) {
+  await ocrQueue.add(
+    "process_ocr",
+    data,
+    {
+      attempts: 3,
+      backoff: 2000
+    }
+  )
+}
+
+
+================================================
+FILE: shared/queues/validation.queue.js
+================================================
+import { Queue } from "bullmq"
+import redis from "../../services/workers/src/config/redis.js"
+import { QUEUE_NAMES } from "../constants/queueNames.js"
+
+export const validationQueue = new Queue(
+  QUEUE_NAMES.VALIDATION,
+  { connection: redis }
+)
+
+export async function addValidationJob(data) {
+  await validationQueue.add(
+    "process_validation",
+    data
+  )
+}
+
+
+================================================
+FILE: shared/queues/zip.queue.js
+================================================
+import { Queue } from "bullmq"
+import redis from "../../services/workers/src/config/redis.js"
+import { QUEUE_NAMES } from "../constants/queueNames.js"
+
+export const zipQueue = new Queue(
+  QUEUE_NAMES.ZIP,
+  { connection: redis }
+)
+
+export async function addZipJob(data) {
+  await zipQueue.add(
+    "process_zip",
+    data,
+    {
+      attempts: 5,
+      backoff: {
+        type: "exponential",
+        delay: 3000
+      },
+      removeOnComplete: true
+    }
+  )
+}
+
+
+================================================
+FILE: storage/uploads/1776236048712_test.zip.zip
+================================================
+[Binary file]
+
+
+================================================
+FILE: storage/uploads/1776236398257_test.zip.zip
+================================================
+[Binary file]
+
+
+================================================
+FILE: storage/uploads/1776319971682_test.zip.zip
+================================================
+[Binary file]
+
+
+================================================
+FILE: storage/uploads/1776319989654_test.zip.zip
+================================================
+[Binary file]
+
+
+================================================
+FILE: storage/uploads/1776321696861_test.zip.zip
+================================================
+[Binary file]
+
+
+================================================
+FILE: storage/uploads/1776340021363_test.zip.zip
+================================================
+[Binary file]
+

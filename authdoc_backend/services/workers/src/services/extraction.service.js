@@ -1,6 +1,6 @@
-import db from "../../../shared/db/postgres.js"
+import db from "../../../../shared/db/postgres.js"
 import { extractFields } from "../utils/schema.mapper.js"
-import { addValidationJob } from "../../../shared/queues/validation.queue.js"
+import { addValidationJob } from "../../../../shared/queues/validation.queue.js"
 
 export async function processExtraction(documentId, rawText) {
   const schemaFields = await db.query(

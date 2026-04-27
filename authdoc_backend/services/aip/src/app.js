@@ -15,7 +15,7 @@ import settingsRoutes from "./routes/settings.routes.js"
 const app = express()
 app.use(helmet())
 app.use(rateLimit({
-    window:60*1000,
+    windowMs:15*60*1000,
     max:100
 }))
 app.use(cors())

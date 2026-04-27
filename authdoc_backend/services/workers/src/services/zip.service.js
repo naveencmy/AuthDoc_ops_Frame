@@ -1,6 +1,6 @@
 import { unzipImages } from "../utils/unzip.utils.js"
-import { addOCRJob } from "../../../shared/queues/ocr.queue.js"
-import db from "../../../shared/db/postgres.js"
+import { addOCRJob } from "../../../../shared/queues/ocr.queue.js"
+import db from "../../../../shared/db/postgres.js"
 
 export async function processZip(batchId, zipPath) {
   const outputDir = `storage/uploads/batches/${batchId}`

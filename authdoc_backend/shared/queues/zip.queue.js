@@ -1,8 +1,7 @@
 import { Queue } from "bullmq"
-import IORedis from "ioredis"
+import redis from "../../services/workers/src/config/redis.js"
 import { QUEUE_NAMES } from "../constants/queueNames.js"
 
-const redis = new IORedis()
 export const zipQueue = new Queue(
   QUEUE_NAMES.ZIP,
   { connection: redis }

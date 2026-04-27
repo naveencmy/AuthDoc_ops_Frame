@@ -1,6 +1,6 @@
 import { runOCR } from "../utils/ocr.client.js"
-import db from "../../../shared/db/postgres.js"
-import { addExtractionJob } from "../../../shared/queues/extraction.queue.js"
+import db from "../../../../shared/db/postgres.js"
+import { addExtractionJob } from "../../../../shared/queues/extraction.queue.js"
 
 export async function processOCR(documentId, imagePath) {
   const result = await runOCR(imagePath)
