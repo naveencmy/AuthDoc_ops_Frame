@@ -1271,7 +1271,103 @@ export class ExportRepository {
 ================================================
 FILE: services/api/src/repositories/schema.repository.js
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 1399: character maps to <undefined>
+import db from "../config/database.js"
+
+export class SchemaRepository {
+
+  static async createSchema(data) {
+    const client = await db.connect()
+
+    try {
+      await client.query("BEGIN")
+
+      // prevent duplicates
+      const existing = await client.query(
+        `SELECT 1 FROM schema_definitions
+         WHERE document_type=$1 AND language=$2 AND version=$3`,
+        [data.document_type, data.language, data.schema_version]
+      )
+
+      if (existing.rows.length) {
+        throw new Error("Schema version already exists")
+      }
+
+      // deactivate old
+      await client.query(
+        `UPDATE schema_definitions
+         SET is_active=false
+         WHERE document_type=$1 AND language=$2`,
+        [data.document_type, data.language]
+      )
+
+      // insert schema
+      const schemaRes = await client.query(
+        `INSERT INTO schema_definitions
+         (document_type, language, version, is_active)
+         VALUES ($1,$2,$3,true)
+         RETURNING *`,
+        [data.document_type, data.language, data.schema_version]
+      )
+
+      const schemaId = schemaRes.rows[0].schema_id
+
+      // insert fields
+      for (const field of data.schema_json) {
+        await client.query(
+          `INSERT INTO schema_fields
+           (schema_id, field_name, data_type, required, confidence_threshold)
+           VALUES ($1,$2,$3,$4,$5)`,
+          [
+            schemaId,
+            field.field_name,
+            field.data_type,
+            field.required,
+            field.confidence_min
+          ]
+        )
+      }
+
+      await client.query("COMMIT")
+
+      return {
+        success: true,
+        data: schemaRes.rows[0]
+      }
+
+    } catch (err) {
+      await client.query("ROLLBACK")
+      return { success: false, message: err.message }
+    } finally {
+      client.release()
+    }
+  }
+
+  static async listSchemas() {
+    const { rows } = await db.query(
+      `SELECT * FROM schema_definitions
+       ORDER BY created_at DESC`
+    )
+    return rows
+  }
+
+  static async getSchemaFields(documentType, language, version) {
+    const schema = await db.query(
+      `SELECT schema_id FROM schema_definitions
+       WHERE document_type=$1 AND language=$2 AND version=$3`,
+      [documentType, language, version]
+    )
+
+    if (!schema.rows.length) return []
+
+    const { rows } = await db.query(
+      `SELECT * FROM schema_fields
+       WHERE schema_id=$1`,
+      [schema.rows[0].schema_id]
+    )
+
+    return rows
+  }
+}
 
 
 ================================================
@@ -1717,16 +1813,14 @@ export const createSchemaValidator = Joi.object({
   language: Joi.string().required(),
   schema_version: Joi.string().required(),
 
-  schema_json: Joi.array()
-  .items(
+  schema_json: Joi.array().items(
     Joi.object({
       field_name: Joi.string().required(),
-      data_type: Joi.string().required(),
-      required: Joi.boolean().optional()
+      data_type: Joi.string().valid("string", "number", "date","Enum").required(),
+      required: Joi.boolean().default(false),
+      confidence_min: Joi.number().min(0).max(1).default(0.7)
     })
-  )
-  .min(1)
-  .required()
+  ).min(1).required()
 })
 
 
@@ -2328,14 +2422,15 @@ export async function processOCR(documentId, imagePath) {
   }
   const { batch_id, document_type, schema_version } = batchRes.rows[0]
   const schemaRes = await db.query(
-    `SELECT field_name, data_type, required
-     FROM schema_fields sf
-     JOIN schema_definitions sd
-     ON sf.schema_id = sd.schema_id
-     WHERE sd.document_type=$1
-     AND sd.version=$2`,
-    [document_type, schema_version]
-  )
+  `SELECT sf.field_name, sf.data_type, sf.required
+   FROM schema_fields sf
+   JOIN schema_definitions sd
+   ON sf.schema_id = sd.schema_id
+   WHERE sd.document_type=$1
+   AND sd.language=$2
+   AND sd.version=$3`,
+  [document_type, "default", schema_version] // or from batch
+)
   if (!schemaRes.rows.length) {
     throw new Error("Schema not found")
   }
@@ -2432,83 +2527,120 @@ FILE: services/workers/src/services/validation.service.js
 import db from "../../../../shared/db/postgres.js"
 import { addOCRJob } from "../../../../shared/queues/ocr.queue.js"
 
-function getNestedValue(obj, path) {
-  if (!path || typeof path !== "string") return undefined
-  return path.split(".").reduce((o, key) => o?.[key], obj)
-}
-
-function nestValidated(flat) {
-  const result = {}
-  for (const key in flat) {
-    const parts = key.split(".")
-    let current = result
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i]
-      if (i === parts.length - 1) {
-        current[part] = flat[key]
-      } else {
-        current[part] = current[part] || {}
-        current = current[part]
+export class ValidationService {
+  static async process(documentId) {
+    const client = await db.connect()
+    try {
+      await client.query("BEGIN")
+      const doc = await this.getDocument(client, documentId)
+      const batch = await this.getBatch(client, doc.batch_id)
+      const schema = await this.getSchema(client, batch)
+      const result = this.validateFields(
+        doc.extracted_data,
+        schema
+      )
+      if (result.avgConfidence < 0.7 && doc.retry_count < 2) {
+        await this.incrementRetry(client, documentId)
+        await client.query("COMMIT")
+        await addOCRJob({ documentId })
+        return
       }
+      await this.saveValidation(
+        client,
+        documentId,
+        result
+      )
+      await client.query("COMMIT")
+    } catch (err) {
+      await client.query("ROLLBACK")
+      console.error("[VALIDATION ERROR]:", err.message)
+      await db.query(
+        `UPDATE documents
+         SET validation_status='FAILED'
+         WHERE document_id=$1`,
+        [documentId]
+      )
+      throw err
+    } finally {
+      client.release()
     }
   }
-  return result
-}
-
-function clampConfidence(v) {
-  if (isNaN(v)) return 0
-  return Math.max(0, Math.min(1, v))
-}
-export async function validateDocument(documentId) {
-  console.log("VALIDATION START:", documentId)
-  const client = await db.connect()
-  try {
-    await client.query("BEGIN")
-    const docRes = await client.query(
-      `SELECT extracted_data, batch_id, retry_count
-       FROM documents
-       WHERE document_id=$1`,
+  static async getDocument(client, documentId) {
+    const res = await client.query(
+      `SELECT * FROM documents WHERE document_id=$1`,
       [documentId]
     )
-    if (!docRes.rows.length) throw new Error("Document not found")
-    const { extracted_data, batch_id, retry_count } = docRes.rows[0]
-    if (!extracted_data || typeof extracted_data !== "object") {
-      throw new Error("Invalid extracted_data")
-    }
-    const batchRes = await client.query(
-      `SELECT document_type, schema_version
-       FROM batches WHERE batch_id=$1`,
-      [batch_id]
+    if (!res.rows.length) throw new Error("Document not found")
+
+    return res.rows[0]
+  }
+  static async getBatch(client, batchId) {
+    const res = await client.query(
+      `SELECT * FROM batches WHERE batch_id=$1`,
+      [batchId]
     )
-    if (!batchRes.rows.length) throw new Error("Batch not found")
-    const { document_type, schema_version } = batchRes.rows[0]
-    const schemaRes = await client.query(
-      `SELECT field_name, data_type, required
+    if (!res.rows.length) throw new Error("Batch not found")
+    return res.rows[0]
+  }
+  static async getSchema(client, batch) {
+    const res = await client.query(
+      `SELECT sf.field_name, sf.data_type, sf.required, sf.confidence_threshold
        FROM schema_fields sf
        JOIN schema_definitions sd
        ON sf.schema_id = sd.schema_id
-       WHERE sd.document_type=$1 AND sd.version=$2`,
-      [document_type, schema_version]
+       WHERE sd.document_type=$1
+       AND sd.version=$2
+       AND sd.language=$3`,
+      [
+        batch.document_type,
+        batch.schema_version,
+        batch.language
+      ]
     )
-
-    if (!schemaRes.rows.length) throw new Error("Schema not found")
-    const schema = schemaRes.rows
-    console.log("Schema fields:", schema.length)
+    if (!res.rows.length) throw new Error("Schema not found")
+    return res.rows
+  }
+  static async incrementRetry(client, documentId) {
+    await client.query(
+      `UPDATE documents
+       SET retry_count = retry_count + 1
+       WHERE document_id=$1`,
+      [documentId]
+    )
+  }
+  static async saveValidation(client, documentId, result) {
+    await client.query(
+      `UPDATE documents
+       SET validated_data = $1,
+           flagged_fields = $2,
+           validation_status = $3,
+           confidence_score = $4,
+           updated_at = NOW()
+       WHERE document_id=$5`,
+      [
+        result.nested,
+        result.flags,
+        result.status,
+        result.avgConfidence,
+        documentId
+      ]
+    )
+  }
+  static validateFields(data, schema) {
     const validated = {}
-    const flagSet = new Set()
-    let status = "VERIFIED"
-
+    const flags = []
+    let total = 0
+    let weightSum = 0
     for (const field of schema) {
-      if (!field.field_name) continue
-      const value = getNestedValue(extracted_data, field.field_name)
+      const value = this.getValue(data, field.field_name)
       let confidence = 1
       let valid = true
-
-      if (field.required && !value) {
+      const weight = field.required ? 2 : 1
+      if (field.required && this.isEmpty(value)) {
         valid = false
         confidence = 0
       }
-      if (value !== undefined && value !== null) {
+      if (!this.isEmpty(value)) {
         if (field.data_type === "number" && isNaN(Number(value))) {
           valid = false
           confidence = 0.3
@@ -2518,87 +2650,48 @@ export async function validateDocument(documentId) {
           confidence = 0.5
         }
       }
-
-      if (field.field_name.includes("Age") && typeof value === "string") {
-        if (!/\d+/.test(value)) {
-          valid = false
-          confidence = 0.2
-        } else {
-          confidence = Math.min(confidence, 0.85)
-        }
+      if (confidence < field.confidence_threshold) {
+        valid = false
       }
-      confidence = clampConfidence(confidence)
       validated[field.field_name] = {
         value,
         confidence,
         valid
       }
-      if (!valid || confidence < 0.7) {
-        flagSet.add(field.field_name)
-        status = "FLAGGED"
+      if (!valid) flags.push(field.field_name)
+      total += confidence * weight
+      weightSum += weight
+    }
+    const avg = weightSum ? total / weightSum : 0
+    return {
+      nested: this.nest(validated),
+      flags,
+      avgConfidence: avg,
+      status: flags.length ? "FLAGGED" : "VERIFIED"
+    }
+  }
+  static getValue(obj, path) {
+    return path.split(".").reduce((o, k) => o?.[k], obj)
+  }
+  static isEmpty(v) {
+    return v === null || v === undefined || v === ""
+  }
+  static nest(flat) {
+    const res = {}
+    for (const key in flat) {
+      const parts = key.split(".")
+      let cur = res
+      for (let i = 0; i < parts.length; i++) {
+        const p = parts[i]
+        if (i === parts.length - 1) {
+          cur[p] = flat[key]
+        } else {
+          cur[p] = cur[p] || {}
+          cur = cur[p]
+        }
       }
     }
-    const values = Object.values(validated)
-    let avgConfidence = 0
-    if (values.length > 0) {
-      avgConfidence =
-        values.reduce((sum, f) => sum + f.confidence, 0) / values.length
-    }
-    avgConfidence = clampConfidence(avgConfidence)
-    console.log("Avg confidence:", avgConfidence)
-    const flags = Array.from(flagSet)
-    if (avgConfidence < 0.7 && retry_count < 2) {
-      console.log("RETRY OCR:", documentId)
-      await client.query(
-        `UPDATE documents
-         SET retry_count = retry_count + 1,
-             updated_at = NOW()
-         WHERE document_id=$1`,
-        [documentId]
-      )
-      await client.query("COMMIT")
-      await addOCRJob({ documentId }) 
-      return
-    }
-    if (avgConfidence < 0.7) {
-      console.log("LOW CONFIDENCE â†’ HUMAN REVIEW:", documentId)
-    }
-
-    const nestedValidated = nestValidated(validated)
-    const res = await client.query(
-      `UPDATE documents
-       SET validated_data = $1::jsonb,
-           flagged_fields = $2::text[],
-           validation_status = $3,
-           confidence_score = $4,
-           updated_at = NOW()
-       WHERE document_id = $5`,
-      [
-        nestedValidated,
-        flags,
-        status,
-        avgConfidence,
-        documentId
-      ]
-    )
-    if (res.rowCount === 0) {
-      throw new Error("DB UPDATE FAILED")
-    }
-    await client.query("COMMIT")
-    console.log("VALIDATION COMPLETE:", documentId)
-  } catch (err) {
-    await client.query("ROLLBACK")
-    console.error("VALIDATION ERROR:", err.message)
-    await db.query(
-      `UPDATE documents
-       SET validation_status = 'FAILED',
-           updated_at = NOW()
-       WHERE document_id = $1`,
-      [documentId]
-    )
-    throw err
-  } finally {
-    client.release()
+    return res
   }
 }
 
@@ -2821,40 +2914,23 @@ worker.on("error", err => {
 ================================================
 FILE: services/workers/src/workers/validation.worker.js
 ================================================
-import db from "../../../../shared/db/postgres.js"
+import { Worker } from "bullmq"
+import redis from "../config/redis.js"
+import { ValidationService } from "../services/validation.service.js"
 
-export async function validateDocument(documentId) {
-  const res = await db.query(
-    `SELECT extracted_data FROM documents WHERE document_id=$1`,
-    [documentId]
-  )
-  const data = res.rows[0]?.extracted_data
-  if (!data) {
-    throw new Error("No extracted data")
-  }
-  let missing = false
-  function check(obj) {
-    for (const key in obj) {
-      if (obj[key] === null || obj[key] === "") {
-        missing = true
-        return
-      }
-      if (typeof obj[key] === "object") {
-        check(obj[key])
-      }
-    }
-  }
-  check(data)
-  const status = missing ? "FLAGGED" : "VERIFIED"
-  await db.query(
-    `UPDATE documents
-     SET validation_status=$1,
-         confidence_score = COALESCE(confidence_score, 0.8),
-         updated_at = NOW()
-     WHERE document_id=$2`,
-    [status, documentId]
-  )
-}
+new Worker(
+  "validation_queue",
+  async job => {
+    const { documentId } = job.data
+
+    console.log("[VALIDATION] job:", documentId)
+
+    await ValidationService.process(documentId)
+
+    console.log("[VALIDATION] done:", documentId)
+  },
+  { connection: redis }
+)
 
 
 ================================================

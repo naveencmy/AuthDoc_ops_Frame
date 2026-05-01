@@ -1,14 +1,16 @@
 import { DashboardService } from "../services/dashboard.service.js"
 
 export class DashboardController {
-  static async getStats(req,res,next){
-    try{
-      const stats = await DashboardService.getStats()
+
+  static async getStats(req, res, next) {
+    try {
+      const data = await DashboardService.getDashboard()
+
       res.json({
-        success:true,
-        data:stats
+        success: true,
+        data
       })
-    }catch(err){
+    } catch (err) {
       next(err)
     }
   }
