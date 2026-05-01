@@ -5,6 +5,8 @@ import rateLimit from "express-rate-limit"
 import { randomUUID } from "crypto"
 import fs from "fs"
 import path from "path"
+import redis from "./services/api/src/config/redis.js"
+
 
 import { requestLogger } from "./middleware/request.logger.js"
 import { errorMiddleware } from "./middleware/error.middleware.js"
@@ -57,7 +59,7 @@ app.use("/api/settings", settingsRoutes)
 app.use(errorMiddleware)
 
 const dirs = ["storage/uploads", "storage/extracted", "storage/exports"]
-
+await redis.ping()
 dirs.forEach(dir => {
   const fullPath = path.resolve(dir)
   if (!fs.existsSync(fullPath)) {
