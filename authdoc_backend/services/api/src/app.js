@@ -5,7 +5,7 @@ import rateLimit from "express-rate-limit"
 import { randomUUID } from "crypto"
 import fs from "fs"
 import path from "path"
-import redis from "./services/api/src/config/redis.js"
+import redis from "./config/redis.js"
 
 
 import { requestLogger } from "./middleware/request.logger.js"

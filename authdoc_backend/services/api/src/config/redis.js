@@ -2,7 +2,7 @@ import IORedis from "ioredis"
 
 const redis = new IORedis({
   host: process.env.REDIS_HOST,
-  port: parseInt(process.env.REDIS_PORT, 10),
+  port: Number(process.env.REDIS_PORT) || 6379,
 
   username: process.env.REDIS_USERNAME,
   password: process.env.REDIS_PASSWORD,
@@ -15,10 +15,6 @@ const redis = new IORedis({
 
 redis.on("connect", () => {
   console.log("Redis connected")
-})
-
-redis.on("ready", () => {
-  console.log("Redis ready")
 })
 
 redis.on("error", (err) => {
