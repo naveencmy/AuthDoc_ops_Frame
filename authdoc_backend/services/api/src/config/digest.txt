@@ -1,0 +1,86 @@
+Directory structure:
+└── config/
+    ├── database.js
+    ├── env.js
+    ├── logger.js
+    └── redis.js
+
+================================================
+FILE: database.js
+================================================
+import pkg from "pg"
+const { Pool } = pkg
+
+const db = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 10
+})
+console.log("USING DB:", process.env.DATABASE_URL)
+
+
+process.on("unhandledRejection", (err) => {
+  console.error("UNHANDLED REJECTION:", err)
+})
+
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT EXCEPTION:", err)
+})
+export default db
+
+
+================================================
+FILE: env.js
+================================================
+import dotenv from "dotenv"
+dotenv.config()
+
+function required(name) {
+  if (!process.env[name]) {
+    throw new Error(`Missing required env: ${name}`)
+  }
+  return process.env[name]
+}
+
+export const env = {
+  NODE_ENV: process.env.NODE_ENV || "development",
+  PORT: parseInt(process.env.PORT || "4000", 10),
+
+  DATABASE_URL: required("DATABASE_URL"),
+  OCR_SERVICE_URL: required("OCR_SERVICE_URL"),
+
+  REDIS_HOST: process.env.REDIS_HOST || "localhost",
+  REDIS_PORT: parseInt(process.env.REDIS_PORT || "6379", 10),
+
+  STORAGE_PATH: process.env.STORAGE_PATH || "./storage"
+}
+
+export default env
+
+
+================================================
+FILE: logger.js
+================================================
+import pino from "pino"
+const logger = pino({
+  level: process.env.LOG_LEVEL || "info",
+  transport: {
+    target: "pino-pretty"
+  }
+})
+export default logger
+
+
+================================================
+FILE: redis.js
+================================================
+import IORedis from "ioredis"
+import env from "./env.js"
+
+const redis = new IORedis({
+  host: env.REDIS_HOST,
+  port: env.REDIS_PORT,
+  maxRetriesPerRequest: null
+})
+
+export default redis
+

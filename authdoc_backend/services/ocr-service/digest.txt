@@ -1,0 +1,366 @@
+Directory structure:
+└── ocr-service/
+    ├── main.py
+    ├── requirements.txt
+    ├── dictionaries/
+    │   └── names.json
+    ├── ocr/
+    │   └── chandra.py
+    └── processing/
+        ├── extractor.py
+        └── record_builder.py
+
+================================================
+FILE: main.py
+================================================
+from fastapi import FastAPI, UploadFile, File, Form
+import tempfile, shutil, os, time, json
+from fastapi.responses import JSONResponse
+
+from ocr.chandra import run_ocr
+from processing.extractor import extract_with_llm
+
+app = FastAPI()
+
+
+def save_temp(file: UploadFile):
+    suffix = os.path.splitext(file.filename or "file.png")[-1]
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        return tmp.name
+
+
+@app.post("/extract")
+async def extract(
+    file: UploadFile = File(...),
+    schema_json: str = Form(...)
+):
+    path = save_temp(file)
+
+    try:
+        start = time.time()
+
+        schema = json.loads(schema_json)
+
+        text = run_ocr(path)
+
+        if not text or len(text.strip()) < 20:
+            return JSONResponse(
+                status_code=422,
+                content={"status": "failed", "error": "OCR_EMPTY"}
+            )
+
+        fields = extract_with_llm(text, schema)
+
+        return {
+            "status": "success",
+            "fields": fields,
+            "time": round(time.time() - start, 2)
+        }
+
+    except Exception as e:
+        return {
+            "status": "failed",
+            "error": str(e)
+        }
+
+    finally:
+        if os.path.exists(path):
+            os.remove(path)
+
+
+================================================
+FILE: requirements.txt
+================================================
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+python-multipart==0.0.9
+
+fastapi
+uvicorn
+python-multipart
+requests
+python-dotenv
+google-generativeai
+# install manually:
+# pip install paddlepaddle==2.6.2
+
+opencv-python-headless==4.9.0.80
+pillow==10.3.0
+numpy==1.26.4
+
+scikit-learn==1.4.2
+requests==2.32.3
+rapidfuzz==3.9.3
+regex==2024.5.15
+unidecode==1.3.8
+transformers>=4.40.0
+torch>=2.2.0
+torchvision>=0.17.0
+pydantic==2.7.1
+loguru==0.7.2
+orjson==3.10.3
+httpx==0.27.0
+tenacity==8.2.3
+
+
+================================================
+FILE: dictionaries/names.json
+================================================
+[
+  "joseph",
+  "thomas",
+  "marie",
+  "anne",
+  "euphrasie",
+  "pierre",
+  "narcisse",
+  "devaux",
+  "troisfontaines",
+  "roissach",
+  "damoiseau",
+  "henrard"
+]
+
+
+================================================
+FILE: ocr/chandra.py
+================================================
+import os
+import requests
+import time
+import mimetypes
+
+PIPELINE_ID = "pl_osN1C4D4_T50"
+BASE_URL = "https://www.datalab.to/api/v1"
+
+def run_ocr(filepath: str):
+    api_key = os.getenv("DATALAB_API_KEY")
+
+    if not api_key:
+        raise Exception("Missing DATALAB_API_KEY")
+
+    headers = {"X-API-Key": api_key}
+    mime_type = mimetypes.guess_type(filepath)[0] or "application/octet-stream"
+
+    with open(filepath, "rb") as f:
+        files = {"file": (os.path.basename(filepath), f, mime_type)}
+
+        res = requests.post(
+            f"{BASE_URL}/pipelines/{PIPELINE_ID}/run?version=1",
+            headers=headers,
+            files=files
+        )
+
+    data = res.json()
+    execution_id = data.get("execution_id")
+
+    if not execution_id:
+        raise Exception(f"Pipeline failed: {data}")
+
+    # Poll
+    for _ in range(40):
+        status = requests.get(
+            f"{BASE_URL}/pipelines/executions/{execution_id}",
+            headers=headers
+        ).json()
+
+        if status["status"] == "completed":
+            break
+
+        if status["status"] == "failed":
+            raise Exception(f"Pipeline failed: {status}")
+
+        time.sleep(1.5)
+
+    # FINAL RESULT
+    result = requests.get(
+        f"{BASE_URL}/pipelines/executions/{execution_id}/steps/1/result",
+        headers=headers
+    ).json()
+
+    # NORMALIZE OUTPUT
+    if result.get("markdown"):
+        return result["markdown"]
+
+    if result.get("chunks"):
+        return " ".join([c.get("text", "") for c in result["chunks"]])
+
+    if result.get("json"):
+        return str(result["json"])
+
+    return ""
+
+
+================================================
+FILE: processing/extractor.py
+================================================
+import os
+import json
+import re
+from typing import Dict, Any, List
+from dotenv import load_dotenv
+from google import genai
+
+load_dotenv()
+
+API_KEY = os.getenv("GEMINI_API_KEY")
+MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash-latest")
+
+client = genai.Client(api_key=API_KEY)
+
+
+# CLEAN TEXT
+def clean_text(text: str):
+    return re.sub(r"\s+", " ", text).strip()
+
+
+# SPLIT LARGE TEXT
+def split_text(text: str, max_chars=12000):
+    return [text[i:i + max_chars] for i in range(0, len(text), max_chars)]
+
+
+# BUILD EMPTY STRUCTURE FROM SCHEMA
+def build_empty(schema: Dict[str, Any]):
+    out = {}
+    for k, v in schema.items():
+        if v.get("type") == "object":
+            out[k] = build_empty(v["properties"])
+        else:
+            out[k] = None
+    return out
+
+
+# PROMPT
+def build_prompt(text: str, schema: Dict[str, Any]):
+    return f"""
+ ### ROLE
+    You are a high-precision Data Extraction Engine. Your objective is to transform unstructured text into a machine-readable JSON format that adheres strictly to a predefined schema.
+
+    ### EXTRACTION PIPELINE
+    1. **Schema Alignment**: Map raw text entities to the keys defined in the schema.
+    2. **Type Casting**: 
+    - Convert written-out numerals (e.g., "forty-two") into integers/floats.
+    - Standardize calendar dates into ISO-8601 or the most logical numeric format.
+    3. **Entity Resolution**: Maintain the literal integrity of proper names and locations unless normalization is required for type-consistency.
+    4. **Handling Ambiguity**: If a field is not present in the source text, or if the data is logically inconclusive, assign the value `null`.
+
+    ### CONSTRAINTS
+    - **No Hallucination**: Do not infer data that does not exist in the text.
+    - **Structural Integrity**: Output MUST be a single, valid JSON object. Do not include Markdown code blocks, preamble, or post-extraction commentary.
+    - **Zero Schema Drift**: Do not add, remove, or modify the keys provided in the schema.
+
+    ### DOCUMENT TEXT
+    {text}
+
+    ### SCHEMA (STRICT)
+    {json.dumps(schema, indent=2)}
+
+    ### OUTPUT FORMAT (STRICT JSON SHAPE)
+    Return JSON EXACTLY like this structure:
+    """
+
+
+# SAFE PARSE
+def safe_parse(text: str):
+    try:
+        return json.loads(text)
+    except:
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start != -1 and end != -1:
+            try:
+                return json.loads(text[start:end])
+            except:
+                pass
+    return {}
+
+
+# MAIN FUNCTION
+def extract_with_llm(text: str, schema: Dict[str, Any]):
+
+    text = clean_text(text)
+    chunks = split_text(text)
+
+    results = []
+
+    for chunk in chunks:
+        prompt = build_prompt(chunk, schema)
+
+        response = client.models.generate_content(
+            model=MODEL,
+            contents=prompt
+        )
+
+        raw = response.text.strip()
+
+        print("\n==== RAW GEMINI ====\n", raw)
+
+        parsed = safe_parse(raw)
+        results.append(parsed)
+
+    # MERGE RESULTS
+    final = {}
+
+    for key in schema.keys():
+        for r in results:
+            if r.get(key):
+                final[key] = r[key]
+                break
+        else:
+            final[key] = None
+
+    return final
+
+
+================================================
+FILE: processing/record_builder.py
+================================================
+def group_pages(blocks_per_page):
+    records = []
+    current = None
+
+    for page in blocks_per_page:
+        if is_record_start(page):
+            if current:
+                records.append(current)
+
+            current = {"pages": [page]}
+        else:
+            if current:
+                current["pages"].append(page)
+
+    if current:
+        records.append(current)
+
+    return records
+def is_record_start(page_blocks):
+    texts = [b["text"].lower() for b in page_blocks]
+
+    has_marriage = any("mariage" in t for t in texts)
+
+    left_margin_names = [
+        b for b in page_blocks
+        if b["x"] < 300 and len(b["text"].split()) >= 2
+    ]
+
+    return has_marriage and len(left_margin_names) >= 2
+
+def split_page_into_records(page_blocks):
+    # cluster by vertical separation (y-axis gaps)
+    lines = sorted(page_blocks, key=lambda b: b["y"])
+
+    chunks = []
+    current = [lines[0]]
+
+    for prev, curr in zip(lines, lines[1:]):
+        if curr["y"] - prev["y"] > 120:  # gap threshold
+            chunks.append(current)
+            current = []
+        current.append(curr)
+
+    if current:
+        chunks.append(current)
+
+    return chunks
+

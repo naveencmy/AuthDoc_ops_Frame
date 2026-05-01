@@ -1,0 +1,2852 @@
+Directory structure:
+└── AuthDoc_ops_Frame/
+    ├── README.md
+    └── authdoc_backend/
+        ├── docker-compose.yml
+        ├── Dockerfile.worker
+        ├── package.json
+        ├── infrastructure/
+        │   ├── docker/
+        │   │   ├── api.Dockerfile
+        │   │   ├── ocr.Dockerfile
+        │   │   └── worker.Dockerfile
+        │   ├── monitoring/
+        │   │   ├── grafana-dashboard.json
+        │   │   └── prometheus.yml
+        │   └── redis/
+        │       └── redis.conf
+        ├── scripts/
+        │   ├── migrate-db.js
+        │   └── seed-db.js
+        ├── services/
+        │   ├── api/
+        │   │   ├── app.js
+        │   │   ├── Dockerfile
+        │   │   ├── server.js
+        │   │   └── src/
+        │   │       ├── config/
+        │   │       │   ├── database.js
+        │   │       │   ├── env.js
+        │   │       │   ├── logger.js
+        │   │       │   └── redis.js
+        │   │       ├── controllers/
+        │   │       │   ├── batch.controller.js
+        │   │       │   ├── dashboard.controller.js
+        │   │       │   ├── document.controller.js
+        │   │       │   ├── export.controller.js
+        │   │       │   ├── schema.controller.js
+        │   │       │   └── settings.controller.js
+        │   │       ├── jobs/
+        │   │       │   ├── export.job.js
+        │   │       │   ├── extraction.job.js
+        │   │       │   ├── ocr.job.js
+        │   │       │   ├── validation.job.js
+        │   │       │   └── zip.job.js
+        │   │       ├── middleware/
+        │   │       │   ├── auth.middleware.js
+        │   │       │   ├── error.middleware.js
+        │   │       │   ├── request.logger.js
+        │   │       │   └── upload.middleware.js
+        │   │       ├── repositories/
+        │   │       │   ├── batch.repository.js
+        │   │       │   ├── document.repository.js
+        │   │       │   ├── export.repository.js
+        │   │       │   ├── schema.repository.js
+        │   │       │   └── settings.repository.js
+        │   │       ├── routes/
+        │   │       │   ├── batch.routes.js
+        │   │       │   ├── dashboard.routes.js
+        │   │       │   ├── document.routes.js
+        │   │       │   ├── export.routes.js
+        │   │       │   ├── schema.routes.js
+        │   │       │   └── settings.routes.js
+        │   │       ├── services/
+        │   │       │   ├── batch.service.js
+        │   │       │   ├── dashboard.service.js
+        │   │       │   ├── document.service.js
+        │   │       │   ├── export.service.js
+        │   │       │   ├── schema.service.js
+        │   │       │   └── settings.service.js
+        │   │       ├── utils/
+        │   │       │   ├── constants.js
+        │   │       │   ├── excel.utils.js
+        │   │       │   ├── file.utils.js
+        │   │       │   └── paination.js
+        │   │       └── validators/
+        │   │           ├── batch.validator.js
+        │   │           ├── export.validator.js
+        │   │           └── schema.validator.js
+        │   ├── ocr-service/
+        │   │   ├── main.py
+        │   │   ├── requirements.txt
+        │   │   ├── dictionaries/
+        │   │   │   └── names.json
+        │   │   ├── ocr/
+        │   │   │   ├── chandra.py
+        │   │   │   └── trocr.py
+        │   │   └── processing/
+        │   │       ├── extractor.py
+        │   │       └── record_builder.py
+        │   └── workers/
+        │       └── src/
+        │           ├── worker.js
+        │           ├── config/
+        │           │   ├── logger.js
+        │           │   └── redis.js
+        │           ├── services/
+        │           │   ├── export.service.js
+        │           │   ├── extraction.service.js
+        │           │   ├── ocr.service.js
+        │           │   ├── validation.service.js
+        │           │   └── zip.service.js
+        │           ├── utils/
+        │           │   ├── ocr.client.js
+        │           │   ├── schema.mapper.js
+        │           │   └── unzip.utils.js
+        │           └── workers/
+        │               ├── export.worker.js
+        │               ├── extraction.worker.js
+        │               ├── ocr.worker.js
+        │               ├── validation.worker.js
+        │               └── zip.worker.js
+        └── shared/
+            ├── constants/
+            │   ├── batchStatus.js
+            │   ├── documentStatus.js
+            │   └── queueNames.js
+            ├── db/
+            │   └── postgres.js
+            ├── logger/
+            │   └── logger.js
+            └── queues/
+                ├── export.queue.js
+                ├── extraction.queue.js
+                ├── ocr.queue.js
+                ├── validation.queue.js
+                └── zip.queue.js
+
+================================================
+FILE: README.md
+================================================
+# AuthDoc_Ops
+## SYstem_Design Of the Architecture && Analysis of the System Level 
+### 1️ High-Level Architecture
+```bash
+API Layer (Node.js)
+    ↓
+Batch Manager
+    ↓
+Zip Extractor
+    ↓
+Queue (Redis)
+    ↓
+Worker Pool
+        ├── OCR Service (Python)
+        ├── Language Detector
+        ├── Schema Loader
+        ├── Field Extractor
+        ├── Confidence Engine
+        ├── Validator
+    ↓
+Storage Layer (Postgres)
+    ↓
+Excel Export Service
+```
+### And the Backend Service  API Point
+```bash
+/authdoc-backend
+   /api
+   /workers
+   /services
+   /schemas
+   /export
+   /ocr-client
+   /db
+   /utils
+```
+### 2️ Backend Folder Structure ( Base-Level Clean)
+Node.js Core Backend
+```bash
+authdoc-enterprise/
+│
+├── src/
+│   ├── api/
+│   │   ├── batch.routes.js
+│   │   ├── document.routes.js
+│   │
+│   ├── controllers/
+│   │   ├── batch.controller.js
+│   │   ├── document.controller.js
+│   │
+│   ├── services/
+│   │   ├── zip.service.js
+│   │   ├── queue.service.js
+│   │   ├── schema.service.js
+│   │   ├── validation.service.js
+│   │   ├── confidence.service.js
+│   │   ├── export.service.js
+│   │
+│   ├── workers/
+│   │   ├── document.worker.js
+│   │
+│   ├── integrations/
+│   │   ├── ocr.client.js
+│   │
+│   ├── config/
+│   │   ├── schema/
+│   │   │   ├── marriage.schema.json
+│   │   │   ├── birth.schema.json
+│   │   │   ├── death.schema.json
+│   │   │
+│   │   ├── language/
+│   │   │   ├── marriage.fr.json
+│   │   │   ├── marriage.nl.json
+│   │
+│   ├── models/
+│   │   ├── batch.model.js
+│   │   ├── document.model.js
+│   │   ├── field.model.js
+│   │
+│   ├── utils/
+│   │   ├── logger.js
+│   │   ├── languageDetector.js
+│   │
+│   ├── app.js
+│   ├── server.js
+│
+├── python-ocr-service/
+│   ├── main.py
+│   ├── ocr_engine.py
+│   ├── requirements.txt
+│
+└── docker-compose.yml
+```
+This is production-aligned.
+### 3️ End-to-End Processing Logic
+
+Now the important part.
+STEP 1 — Batch Upload API
+```bash
+POST /batch/upload
+
+```
+Flow:
+```javascript
+1. Receive ZIP
+2. Create batch_id
+3. Store ZIP temporarily
+4. Call zip.service.extract()
+5. For each image:
+     queue.add({
+         batch_id,
+         image_path
+     })
+6. Return batch_id immediately
+```
+No blocking.
+STEP 2 — Zip Service
+zip.service.js
+```javascript
+extract(zipPath):
+    unzip to /uploads/{batch_id}/
+    filter image files only
+    return imagePaths[]
+```
+Only images.
+STEP 3 — Queue Service
+
+Use BullMQ.
+```javascript
+queue.service.js
+add(job):
+    documentQueue.add("process-document", job)
+```
+STEP 4 — Worker (Core Intelligence)
+
+document.worker.js
+
+This is where real logic happens.
+
+Pseudo flow:
+```javascript
+process(job):
+
+    const { batch_id, image_path } = job.data
+
+    // 1. First we Call the  OCR microservice as do the ligth ocr to find the the what type of file is this (index/blank/title / birth/death/marriage)
+    const ocrResult = await ocrClient.extract(image_path)
+
+    // 2. Detect language from the before ocr process by compara with the our schema data's
+    const language = detectLanguage(ocrResult.raw_text)
+
+    // 3. After detect that it is what language and which type of file is this then we Load schema
+    const schema = schemaService.load("marriage")
+
+    // 4. from the schema it get the data that which field that ocr need to extract in the which in which by Load language keywords
+    const keywordMap = schemaService.loadLanguage("marriage", language)
+
+    // 5.  finally Extract fields and passed to the compute departments
+    const extractedFields = extractFields(
+        ocrResult.raw_text,
+        schema,
+        keywordMap
+    )
+
+    // 6. Compute confidence  check the data is ok or not , error by the calculate it's extracted quality 
+    const scoredFields = confidenceService.score(
+        extractedFields,
+        ocrResult.confidence_map
+    )
+
+    // 7. Validate
+    const validatedFields = validationService.validate(
+        scoredFields,
+        schema
+    )
+
+    // 8. Store in DB
+    saveDocumentRecord(batch_id, validatedFields)
+```
+Everything modular.
+### 4️ OCR Microservice Structure (Python)
+
+Keep it clean.
+
+main.py
+```python
+@app.post("/extract")
+async def extract(file: UploadFile):
+
+    image = load_image(file)
+
+    result = paddle_ocr(image)
+
+    return {
+        "raw_text": result.text,
+        "confidence_map": result.confidence
+    }
+```
+No validation logic here.
+### 5️ Field Extraction Logic (Core Design)
+
+You DO NOT hardcode.
+
+Use:
+```py
+extractFields(rawText, schema, keywordMap)
+```
+Algorithm:
+
+For each field in schema:
+
+    Find keyword in rawText
+
+    Extract text near keyword
+
+    Normalize (date format, name format)
+
+    Return value
+
+If not found:
+
+    value = null
+
+### 6️ Confidence Engine
+```javascript 
+score(fields, confidence_map):
+
+    for each field:
+        if field.value exists:
+            compute average OCR confidence
+        else:
+            confidence = 0
+
+        if confidence > 0.85:
+            status = VERIFIED
+        else if confidence > 0.6:
+            status = FLAGGED
+        else:
+            status = MISSING
+```
+This is realistic.
+### 7️ Validation Engine
+
+Based on schema:
+```javascript
+validate(fields, schema):
+
+    for each required field:
+        if value is null:
+            status = FLAGGED
+```
+Optional fields:
+Leave empty.
+### 8️ Excel Export Engine
+
+export.service.js
+```javascript
+generateExcel(batch_id):
+
+    load template
+    for each document:
+        map fields → template columns
+        write row
+    save file
+    return download link
+```
+Template mapping loaded from JSON.
+
+Never hardcode column names.
+### 9️ Horizontal Scaling Strategy
+
+You scale by:
+
+    Increasing worker count
+
+    Running multiple worker instances
+
+    Using Redis queue
+
+    Dockerizing services
+
+No architecture changes required.
+### 10 Failure Handling Strategy
+```powershell
+You must handle:
+
+    Corrupted image
+
+    OCR failure
+
+    Language detection failure
+```
+If OCR fails:
+
+Store document with status = ERROR
+Continue processing batch
+
+Never crash entire batch.
+
+
+
+================================================
+FILE: authdoc_backend/docker-compose.yml
+================================================
+services:
+  redis:
+    image: redis:7
+    container_name: authdoc-redis
+    ports:
+      - "6379:6379"
+
+
+================================================
+FILE: authdoc_backend/Dockerfile.worker
+================================================
+FROM node:20
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+CMD ["node", "services/workers/src/worker.js"]
+
+
+================================================
+FILE: authdoc_backend/package.json
+================================================
+{
+  "name": "authdoc-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "worker": "node services/workers/src/worker.js",
+    "api": "node services/aip/src/server.js"
+  },
+  "dependencies": {
+    "axios": "^1.13.6",
+    "bullmq": "^5.71.1",
+    "cors": "^2.8.6",
+    "dayjs": "^1.11.20",
+    "dotenv": "^17.3.1",
+    "exceljs": "^3.4.0",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.3.1",
+    "helmet": "^8.1.0",
+    "ioredis": "^5.10.1",
+    "joi": "^18.1.1",
+    "jsonwebtoken": "^9.0.3",
+    "morgan": "^1.10.1",
+    "multer": "^2.1.1",
+    "nodemon": "^3.1.14",
+    "pg": "^8.20.0",
+    "pino": "^10.3.1",
+    "pino-pretty": "^13.1.3",
+    "unzipper": "^0.12.3",
+    "uuid": "^14.0.0"
+  }
+}
+
+
+
+================================================
+FILE: authdoc_backend/infrastructure/docker/api.Dockerfile
+================================================
+FROM node:20-alpine
+WORKDIR /app
+COPY services/api/package*.json ./
+RUN npm install --production
+COPY services/api/src ./src
+EXPOSE 4000
+CMD ["node","src/server.js"]
+
+
+================================================
+FILE: authdoc_backend/infrastructure/docker/ocr.Dockerfile
+================================================
+FROM python:3.10-slim
+WORKDIR /app
+COPY services/ocr-service/app/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY services/ocr-service/app .
+EXPOSE 8000
+CMD ["uvicorn","main:app","--host","0.0.0.0","--port","8000"]
+
+
+================================================
+FILE: authdoc_backend/infrastructure/docker/worker.Dockerfile
+================================================
+FROM node:20-alpine
+WORKDIR /app
+COPY services/workers/package*.json ./
+RUN npm install --production
+COPY services/workers/src ./src
+CMD ["node","src/worker.js"]
+
+
+================================================
+FILE: authdoc_backend/infrastructure/monitoring/grafana-dashboard.json
+================================================
+{
+  "title": "AuthDoc System Metrics",
+  "panels": [
+    {
+      "title": "Queue Jobs",
+      "type": "graph"
+    },
+    {
+      "title": "OCR Latency",
+      "type": "graph"
+    },
+    {
+      "title": "Worker Throughput",
+      "type": "graph"
+    }
+  ]
+}
+
+
+================================================
+FILE: authdoc_backend/infrastructure/monitoring/prometheus.yml
+================================================
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+
+  - job_name: "api"
+
+    static_configs:
+      - targets: ["api:4000"]
+
+  - job_name: "workers"
+
+    static_configs:
+      - targets: ["worker:9100"]
+
+  - job_name: "ocr"
+
+    static_configs:
+      - targets: ["ocr:8000"]
+
+  - job_name: "redis"
+
+    static_configs:
+      - targets: ["redis:6379"]
+
+
+================================================
+FILE: authdoc_backend/infrastructure/redis/redis.conf
+================================================
+bind 0.0.0.0
+port 6379
+
+# persistence
+appendonly yes
+appendfsync everysec
+
+# memory management
+maxmemory 2gb
+maxmemory-policy allkeys-lru
+
+# networking
+tcp-backlog 511
+timeout 0
+tcp-keepalive 300
+
+# logging
+loglevel notice
+
+# slowlog
+slowlog-log-slower-than 10000
+slowlog-max-len 128
+
+# save snapshots
+save 900 1
+save 300 10
+save 60 10000
+
+
+================================================
+FILE: authdoc_backend/scripts/migrate-db.js
+================================================
+[Empty file]
+
+
+================================================
+FILE: authdoc_backend/scripts/seed-db.js
+================================================
+[Empty file]
+
+
+================================================
+FILE: authdoc_backend/services/api/app.js
+================================================
+import express from "express"
+import cors from "cors"
+import helmet from "helmet"
+import rateLimit from "express-rate-limit"
+import { requestLogger } from "./middleware/request.logger.js"
+import { errorMiddleware } from "./middleware/error.middleware.js"
+
+import batchRoutes from "./routes/batch.routes.js"
+import documentRoutes from "./routes/document.routes.js"
+import schemaRoutes from "./routes/schema.routes.js"
+import exportRoutes from "./routes/export.routes.js"
+import dashboardRoutes from "./routes/dashboard.routes.js"
+import settingsRoutes from "./routes/settings.routes.js"
+
+const app = express()
+app.use(helmet())
+app.use(rateLimit({
+    windowMs:15*60*1000,
+    max:100
+}))
+app.use(cors())
+app.use(express.json())
+app.use(requestLogger)
+app.use(express.json({
+    limit:"10mb"
+}))
+app.use(requestLogger)
+app.get("/health",(req,res)=>{
+    res.json({status:"ok"})
+})
+
+app.use("/api/batches", batchRoutes)
+app.use("/api/documents", documentRoutes)
+app.use("/api/schemas", schemaRoutes)
+app.use("/api/exports", exportRoutes)
+app.use("/api/dashboard", dashboardRoutes)
+app.use("/api/settings", settingsRoutes)
+app.use(errorMiddleware)
+export default app
+
+
+================================================
+FILE: authdoc_backend/services/api/Dockerfile
+================================================
+[Empty file]
+
+
+================================================
+FILE: authdoc_backend/services/api/server.js
+================================================
+import app from "./app.js"
+import env from "./config/env.js"
+import logger from "./config/logger.js"
+
+app.listen(env.PORT, () => {
+
+  logger.info(`AuthDoc API running on port ${env.PORT}`)
+})
+
+
+================================================
+FILE: authdoc_backend/services/api/src/config/database.js
+================================================
+import pkg from "pg"
+import env from "./env.js"
+
+const { Pool } = pkg
+export const db = new Pool({
+  connectionString: env.DATABASE_URL,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000
+})
+db.on("connect", () => {
+  console.log("PostgreSQL connected")
+})
+db.on("error", (err) => {
+  console.error("PostgreSQL error", err)
+})
+export default db
+
+
+================================================
+FILE: authdoc_backend/services/api/src/config/env.js
+================================================
+import dotenv from "dotenv"
+
+dotenv.config()
+
+export const env = {
+  NODE_ENV: process.env.NODE_ENV || "development",
+  PORT: parseInt(process.env.PORT || "4000", 10),
+  DATABASE_URL: process.env.DATABASE_URL,
+  REDIS_HOST: process.env.REDIS_HOST || "localhost",
+  REDIS_PORT: parseInt(process.env.REDIS_PORT || "6379", 10),
+  STORAGE_PATH: process.env.STORAGE_PATH || "./storage",
+  OCR_SERVICE_URL: process.env.OCR_SERVICE_URL
+}
+export default env
+
+
+================================================
+FILE: authdoc_backend/services/api/src/config/logger.js
+================================================
+import pino from "pino"
+const logger = pino({
+  level: process.env.LOG_LEVEL || "info",
+  transport: {
+    target: "pino-pretty"
+  }
+})
+export default logger
+
+
+================================================
+FILE: authdoc_backend/services/api/src/config/redis.js
+================================================
+import IORedis from "ioredis"
+import env from "./env.js"
+
+const redis = new IORedis({
+  host: env.REDIS_HOST,
+  port: env.REDIS_PORT,
+  maxRetriesPerRequest: null
+})
+
+export default redis
+
+
+================================================
+FILE: authdoc_backend/services/api/src/controllers/batch.controller.js
+================================================
+import { BatchService } from "../services/batch.service.js"
+import { batchSchema } from "../validators/batch.validator.js"
+
+export class BatchController {
+
+  static async createBatch(req,res,next){
+    try{
+      const { error, value } = batchSchema.validate(req.body)
+      if(error){
+        return res.status(400).json({
+          success:false,
+          message:error.message
+        })
+      }
+      if(!req.file){
+        return res.status(400).json({
+          success:false,
+          message:"ZIP file required"
+        })
+      }
+
+      const zipPath = req.file.path
+      const batch = await BatchService.createBatch(
+        value,
+        zipPath
+      )
+      res.status(201).json({
+        success:true,
+        data:batch
+      })
+    }catch(err){
+      next(err)
+    }
+  }
+
+  static async getBatch(req,res,next){
+    try{
+      const { batchId } = req.params
+      const batch = await BatchService.getBatch(batchId)
+      res.json({
+        success:true,
+        data:batch
+      })
+
+    }catch(err){
+      next(err)
+    }
+  }
+  static async listBatches(req,res,next){
+    try{
+      const limit = parseInt(req.query.limit || 20)
+      const offset = parseInt(req.query.offset || 0)
+      const batches = await BatchService.listBatches(
+        limit,
+        offset
+      )
+      res.json({
+        success:true,
+        data:batches
+      })
+    }catch(err){
+      next(err)
+    }
+  }
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/controllers/dashboard.controller.js
+================================================
+import { DashboardService } from "../services/dashboard.service.js"
+
+export class DashboardController {
+  static async getStats(req,res,next){
+    try{
+      const stats = await DashboardService.getStats()
+      res.json({
+        success:true,
+        data:stats
+      })
+    }catch(err){
+      next(err)
+    }
+  }
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/controllers/document.controller.js
+================================================
+import { DocumentService } from "../services/document.service.js"
+export class DocumentController {
+
+  static async getDocument(req,res,next){
+    try{
+      const { documentId } = req.params
+      const document = await DocumentService.getDocument(
+        documentId
+      )
+      res.json({
+        success:true,
+        data:document
+      })
+    }catch(err){
+      next(err)
+    }
+  }
+
+  static async getBatchDocuments(req,res,next){
+    try{
+      const { batchId } = req.params
+      const limit = parseInt(req.query.limit || 20)
+      const offset = parseInt(req.query.offset || 0)
+      const documents = await DocumentService.getBatchDocuments(
+        batchId,
+        limit,
+        offset
+      )
+      res.json({
+        success:true,
+        data:documents
+      })
+    }catch(err){
+      next(err)
+    }
+  }
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/controllers/export.controller.js
+================================================
+import { ExportService } from "../services/export.service.js"
+import { exportSchema } from "../validators/export.validator.js"
+
+export class ExportController {
+
+  static async createExport(req,res,next){
+    try{
+      const { error, value } = exportSchema.validate(req.body)
+      if(error){
+        return res.status(400).json({
+          success:false,
+          message:error.message
+        })
+      }
+      const exportRecord = await ExportService.createExport(value)
+      res.status(201).json({
+        success:true,
+        data:exportRecord
+      })
+    }catch(err){
+      next(err)
+    }
+  }
+  static async getExport(req,res,next){
+    try{
+      const { exportId } = req.params
+      const exportData = await ExportService.getExport(exportId)
+      res.json({
+        success:true,
+        data:exportData
+      })
+    }catch(err){
+      next(err)
+    }
+  }
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/controllers/schema.controller.js
+================================================
+import { SchemaService } from "../services/schema.service.js"
+import { schemaDefinition } from "../validators/schema.validator.js"
+
+export class SchemaController {
+
+  static async createSchema(req,res,next){
+    try{
+      const { error, value } = schemaDefinition.validate(req.body)
+      if(error){
+        return res.status(400).json({
+          success:false,
+          message:error.message
+        })
+      }
+      const schema = await SchemaService.createSchema(value)
+      res.status(201).json({
+        success:true,
+        data:schema
+      })
+    }catch(err){
+      next(err)
+    }
+  }
+
+  static async listSchemas(req,res,next){
+    try{
+      const schemas = await SchemaService.listSchemas()
+      res.json({
+        success:true,
+        data:schemas
+      })
+    }catch(err){
+      next(err)
+    }
+  }
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/controllers/settings.controller.js
+================================================
+import { SettingsService } from "../services/settings.service.js"
+export class SettingsController {
+  static async listSettings(req,res,next){
+    try{
+      const settings = await SettingsService.listSettings()
+      res.json({
+        success:true,
+        data:settings
+      })
+    }catch(err){
+      next(err)
+    }
+  }
+  static async updateSetting(req,res,next){
+    try{
+      const { key } = req.params
+      const { value } = req.body
+      const setting = await SettingsService.updateSetting(
+        key,
+        value
+      )
+      res.json({
+        success:true,
+        data:setting
+      })
+    }catch(err){
+      next(err)
+    }
+  }
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/jobs/export.job.js
+================================================
+import { Queue } from "bullmq"
+import redis from "../config/redis.js"
+import { QUEUES } from "../utils/constants.js"
+
+const exportQueue = new Queue(
+  QUEUES.EXPORT,
+  { connection:redis }
+)
+
+export async function addExportJob(data){
+  await exportQueue.add(
+    "generate_export",
+    data,
+    {
+      attempts:3,
+      backoff:5000
+    }
+  )
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/jobs/extraction.job.js
+================================================
+import { Queue } from "bullmq"
+import redis from "../config/redis.js"
+import { QUEUES } from "../utils/constants.js"
+
+const extractionQueue = new Queue(
+  QUEUES.EXTRACTION,
+  { connection:redis }
+)
+
+export async function addExtractionJob(data){
+  await extractionQueue.add(
+    "process_extraction",
+    data
+  )
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/jobs/ocr.job.js
+================================================
+import { Queue } from "bullmq"
+import redis from "../config/redis.js"
+import { QUEUES } from "../utils/constants.js"
+
+const ocrQueue = new Queue(
+  QUEUES.OCR,
+  { connection:redis }
+)
+export async function addOCRJob(data){
+
+  await ocrQueue.add(
+    "process_ocr",
+    data,
+    {
+      attempts:3,
+      backoff:2000
+    }
+  )
+
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/jobs/validation.job.js
+================================================
+import { Queue } from "bullmq"
+import redis from "../config/redis.js"
+import { QUEUES } from "../utils/constants.js"
+
+const validationQueue = new Queue(
+  QUEUES.VALIDATION,
+  { connection:redis }
+)
+export async function addValidationJob(data){
+  await validationQueue.add(
+    "process_validation",
+    data
+  )
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/jobs/zip.job.js
+================================================
+import { Queue } from "bullmq"
+import redis from "../config/redis.js"
+import { QUEUES } from "../utils/constants.js"
+
+// Create queue
+const zipQueue = new Queue(
+  QUEUES.ZIP,
+  { connection: redis }
+)
+
+// Add job to queue
+export async function addZipJob(data) {
+  try {
+    console.log("🚀 [ZIP JOB] Adding job to queue:", data)
+
+    const job = await zipQueue.add(
+      "process_zip",
+      data,
+      {
+        attempts: 5,
+        backoff: {
+          type: "exponential",
+          delay: 3000
+        },
+        removeOnComplete: true
+      }
+    )
+
+    console.log("✅ [ZIP JOB] Job added successfully. Job ID:", job.id)
+
+    return job
+  } catch (error) {
+    console.error("❌ [ZIP JOB] Failed to add job:", error)
+    throw error
+  }
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/middleware/auth.middleware.js
+================================================
+import jwt from "jsonwebtoken"
+import env from "../config/env.js"
+
+export function authMiddleware(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization
+    if (!authHeader) {
+      return res.status(401).json({
+        success:false,
+        message:"Authorization header missing"
+      })
+    }
+    const token = authHeader.split(" ")[1]
+    if (!token) {
+      return res.status(401).json({
+        success:false,
+        message:"Token missing"
+      })
+    }
+    const decoded = jwt.verify(
+      token,
+      env.JWT_SECRET
+    )
+    req.user = decoded
+    next()
+  } catch (err) {
+    return res.status(401).json({
+      success:false,
+      message:"Invalid or expired token"
+    })
+  }
+}
+
+export function requireRole(role){
+  return (req,res,next)=>{
+    if(!req.user){
+      return res.status(401).json({
+        success:false,
+        message:"Unauthorized"
+      })
+    }
+    if(req.user.role !== role){
+      return res.status(403).json({
+        success:false,
+        message:"Forbidden"
+      })
+    }
+    next()
+  }
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/middleware/error.middleware.js
+================================================
+import logger from "../config/logger.js"
+
+export function errorMiddleware(err, req, res, next) {
+  logger.error({
+    message: err.message,
+    stack: err.stack
+  })
+
+  const status = err.status || 500
+  res.status(status).json({
+    success:false,
+    message: err.message || "Internal server error"
+  })
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/middleware/request.logger.js
+================================================
+import logger from "../config/logger.js"
+
+export function requestLogger(req, res, next) {
+  const start = Date.now()
+  res.on("finish", () => {
+    const duration = Date.now() - start
+    logger.info({
+      method: req.method,
+      path: req.originalUrl,
+      status: res.statusCode,
+      duration
+    })
+  })
+  next()
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/middleware/upload.middleware.js
+================================================
+import multer from "multer"
+import path from "path"
+import env from "../config/env.js"
+
+const storage = multer.diskStorage({
+  destination:(req,file,cb)=>{
+    cb(null,path.join(env.STORAGE_PATH,"uploads"))
+  },
+  filename:(req,file,cb)=>{
+    const name = Date.now()+"_"+file.originalname
+    cb(null,name)
+  }
+})
+
+const fileFilter = (req,file,cb)=>{
+  if(!file.originalname.endsWith(".zip")){
+    return cb(new Error("Only ZIP files allowed"))
+  }
+  cb(null,true)
+}
+export const upload = multer({
+  storage,
+  fileFilter,
+  limits:{
+    fileSize: 1024*1024*500
+  }
+})
+
+
+================================================
+FILE: authdoc_backend/services/api/src/repositories/batch.repository.js
+================================================
+import db from "../config/database.js"
+
+export class BatchRepository {
+  static async createBatch(data) {
+    const query = `
+      INSERT INTO batches
+      (
+        batch_name,
+        document_type,
+        priority,
+        total_documents,
+        processed_documents,
+        error_count,
+        status
+      )
+      VALUES ($1,$2,$3,0,0,0,'queued')
+      RETURNING *
+    `
+    const values = [
+      data.batch_name,
+      data.document_type,
+      data.priority
+    ]
+    const { rows } = await db.query(query, values)
+    return rows[0]
+  }
+  
+  static async getBatchById(batchId) {
+    const query = `
+      SELECT *
+      FROM batches
+      WHERE batch_id = $1
+    `
+    const { rows } = await db.query(query,[batchId])
+    return rows[0]
+  }
+
+  static async listBatches(limit, offset) {
+    const query = `
+      SELECT *
+      FROM batches
+      ORDER BY created_at DESC
+      LIMIT $1 OFFSET $2
+    `
+    const { rows } = await db.query(query,[limit,offset])
+    return rows
+  }
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/repositories/document.repository.js
+================================================
+import db from "../config/database.js"
+
+export class DocumentRepository {
+  static async getById(documentId) {
+    const query = `
+      SELECT *
+      FROM documents
+      WHERE document_id = $1
+    `
+    const { rows } = await db.query(query, [documentId])
+    return rows[0]
+  }
+  static async getByBatch(batchId, limit, offset) {
+    const query = `
+      SELECT *
+      FROM documents
+      WHERE batch_id = $1
+      ORDER BY created_at DESC
+      LIMIT $2 OFFSET $3
+    `
+    const { rows } = await db.query(query, [
+      batchId,
+      limit,
+      offset
+    ])
+    return rows
+  }
+
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/repositories/export.repository.js
+================================================
+import db from "../config/database.js"
+
+export class ExportRepository {
+  static async createExport(data) {
+    const query = `
+      INSERT INTO exports
+      (batch_id, export_type, status)
+      VALUES ($1,$2,'generating')
+      RETURNING *
+    `
+    const values = [
+      data.batch_id,
+      data.export_type
+    ]
+    const { rows } = await db.query(query, values)
+    return rows[0]
+  }
+  static async updateExportStatus(exportId, status, filePath) {
+
+  const query = `
+    UPDATE exports
+    SET status = $1,
+        file_path = $2
+    WHERE export_id = $3
+    RETURNING *
+  `
+
+  const { rows } = await db.query(query,[status,filePath,exportId])
+
+  return rows[0]
+
+}
+
+}
+
+
+
+================================================
+FILE: authdoc_backend/services/api/src/repositories/schema.repository.js
+================================================
+import db from "../config/database.js"
+
+export class SchemaRepository {
+  static async createSchema(data) {
+    const query = `
+      INSERT INTO schema_definitions
+      (document_type, language, schema_version, status)
+      VALUES ($1,$2,$3,'active')
+      RETURNING *
+    `
+    const values = [
+      data.document_type,
+      data.language,
+      data.schema_version
+    ]
+    const { rows } = await db.query(query, values)
+    return rows[0]
+  }
+  static async listSchemas() {
+    const query = `
+      SELECT *
+      FROM schema_definitions
+      ORDER BY created_at DESC
+    `
+    const { rows } = await db.query(query)
+    return rows
+  }
+
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/repositories/settings.repository.js
+================================================
+import db from "../config/database.js"
+
+export class SettingsRepository {
+  static async listSettings() {
+    const query = `
+      SELECT *
+      FROM system_settings
+    `
+    const { rows } = await db.query(query)
+    return rows
+  }
+  static async updateSetting(key, value) {
+    const query = `
+      UPDATE system_settings
+      SET setting_value = $1,
+          updated_at = NOW()
+      WHERE setting_key = $2
+      RETURNING *
+    `
+    const { rows } = await db.query(query, [value, key])
+    return rows[0]
+  }
+
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/routes/batch.routes.js
+================================================
+import express from "express"
+import { BatchController } from "../controllers/batch.controller.js"
+import { upload } from "../middleware/upload.middleware.js"
+
+const router = express.Router()
+router.post(
+  "/upload",
+  upload.single("zip_file"),
+  BatchController.createBatch
+)
+export default router
+
+
+================================================
+FILE: authdoc_backend/services/api/src/routes/dashboard.routes.js
+================================================
+import express from "express"
+import { DashboardController } from "../controllers/dashboard.controller.js"
+
+const router = express.Router()
+router.get("/stats",DashboardController.getStats)
+export default router
+
+
+================================================
+FILE: authdoc_backend/services/api/src/routes/document.routes.js
+================================================
+import express from "express"
+import { DocumentController } from "../controllers/document.controller.js"
+
+const router = express.Router()
+
+router.get("/:documentId",DocumentController.getDocument)
+router.get("/batch/:batchId",DocumentController.getBatchDocuments)
+export default router
+
+
+================================================
+FILE: authdoc_backend/services/api/src/routes/export.routes.js
+================================================
+import express from "express"
+import { ExportController } from "../controllers/export.controller.js"
+
+const router = express.Router()
+router.post("/",ExportController.createExport)
+router.get("/:exportId",ExportController.getExport)
+export default router
+
+
+================================================
+FILE: authdoc_backend/services/api/src/routes/schema.routes.js
+================================================
+import express from "express"
+import { SchemaController } from "../controllers/schema.controller.js"
+
+const router = express.Router()
+router.post("/",SchemaController.createSchema)
+router.get("/",SchemaController.listSchemas)
+export default router
+
+
+================================================
+FILE: authdoc_backend/services/api/src/routes/settings.routes.js
+================================================
+import express from "express"
+import { SettingsController } from "../controllers/settings.controller.js"
+
+const router = express.Router()
+router.get("/",SettingsController.listSettings)
+router.put("/:key",SettingsController.updateSetting)
+export default router
+
+
+================================================
+FILE: authdoc_backend/services/api/src/services/batch.service.js
+================================================
+import { BatchRepository } from "../repositories/batch.repository.js"
+import { addZipJob } from "../jobs/zip.job.js"
+
+export class BatchService {
+
+  // Create batch + trigger worker
+  static async createBatch(data, zipPath) {
+    try {
+      console.log("📦 [BATCH] Creating batch with data:", data)
+
+      // Step 1: Create batch in DB
+      const batch = await BatchRepository.createBatch(data)
+
+      console.log("✅ [BATCH] Batch created:", batch)
+
+      // Step 2: Add job to queue
+      try {
+        console.log("🚀 [BATCH] Sending job to ZIP queue...")
+
+        await addZipJob({
+          batchId: batch.batch_id,
+          zipPath
+        })
+
+        console.log("✅ [BATCH] Job sent to queue successfully")
+
+      } catch (jobError) {
+        console.error("❌ [BATCH] Failed to send job:", jobError)
+      }
+
+      return batch
+
+    } catch (error) {
+      console.error("❌ [BATCH] Failed to create batch:", error)
+      throw error
+    }
+  }
+
+  static async getBatch(batchId) {
+    const batch = await BatchRepository.getBatchById(batchId)
+
+    if (!batch) {
+      throw new Error("Batch not found")
+    }
+
+    return batch
+  }
+
+  static async listBatches(limit, offset) {
+    return BatchRepository.listBatches(limit, offset)
+  }
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/services/dashboard.service.js
+================================================
+import db from "../config/database.js"
+
+export class DashboardService {
+  static async getStats() {
+    const batchCountQuery = `
+      SELECT COUNT(*) AS total_batches
+      FROM batches
+    `
+    const documentCountQuery = `
+      SELECT COUNT(*) AS total_documents
+      FROM documents
+    `
+    const verifiedQuery = `
+      SELECT COUNT(*) AS verified_documents
+      FROM documents
+      WHERE validation_status = 'VERIFIED'
+    `
+    const flaggedQuery = `
+      SELECT COUNT(*) AS flagged_documents
+      FROM documents
+      WHERE validation_status = 'FLAGGED'
+    `
+    const [
+      batchCount,
+      docCount,
+      verified,
+      flagged
+    ] = await Promise.all([
+      db.query(batchCountQuery),
+      db.query(documentCountQuery),
+      db.query(verifiedQuery),
+      db.query(flaggedQuery)
+    ])
+    return {
+      total_batches: batchCount.rows[0].total_batches,
+      total_documents: docCount.rows[0].total_documents,
+      verified_documents: verified.rows[0].verified_documents,
+      flagged_documents: flagged.rows[0].flagged_documents
+    }
+  }
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/services/document.service.js
+================================================
+import { DocumentRepository } from "../repositories/document.repository.js"
+
+export class DocumentService {
+  static async getDocument(documentId) {
+    const doc = await DocumentRepository.getById(documentId)
+    if (!doc) {
+      throw new Error("Document not found")
+    }
+    return doc
+  }
+  static async getBatchDocuments(batchId, limit, offset) {
+    return DocumentRepository.getByBatch(
+      batchId,
+      limit,
+      offset
+    )
+  }
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/services/export.service.js
+================================================
+import { ExportRepository } from "../repositories/export.repository.js"
+import { addExportJob } from "../jobs/export.job.js"
+
+export class ExportService {
+  static async createExport(data) {
+    const record = await ExportRepository.createExport(data)
+    await addExportJob({
+      exportId: record.export_id,
+      batchId: record.batch_id
+    })
+    return record
+  }
+
+  static async getExport(exportId) {
+    const record = await ExportRepository.getExportById(exportId)
+    if (!record) {
+      throw new Error("Export not found")
+    }
+    return record
+  }
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/services/schema.service.js
+================================================
+import { SchemaRepository } from "../repositories/schema.repository.js"
+
+export class SchemaService {
+  static async createSchema(data) {
+    return SchemaRepository.createSchema(data)
+  }
+  static async listSchemas() {
+    return SchemaRepository.listSchemas()
+  }
+
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/services/settings.service.js
+================================================
+import { SettingsRepository } from "../repositories/settings.repository.js"
+
+export class SettingsService {
+  static async listSettings() {
+    return SettingsRepository.listSettings()
+  }
+  static async updateSetting(key, value) {
+    return SettingsRepository.updateSetting(key, value)
+  }
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/utils/constants.js
+================================================
+export const DOCUMENT_STATUS = {
+  VERIFIED: "VERIFIED",
+  FLAGGED: "FLAGGED",
+  LOW_CONFIDENCE: "LOW_CONFIDENCE",
+  MISSING: "MISSING"
+}
+export const BATCH_STATUS = {
+  QUEUED: "queued",
+  PROCESSING: "processing",
+  COMPLETED: "completed",
+  FAILED: "failed"
+}
+export const QUEUES = {
+  ZIP: "zip_queue",
+  OCR: "ocr_queue",
+  EXTRACTION: "extraction_queue",
+  VALIDATION: "validation_queue",
+  EXPORT: "export_queue"
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/utils/excel.utils.js
+================================================
+import ExcelJS from "exceljs"
+
+export async function generateExcel(filePath, rows){
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet("documents")
+  if(rows.length === 0){
+    await workbook.xlsx.writeFile(filePath)
+    return
+  }
+  sheet.columns = Object.keys(rows[0]).map(key=>({
+    header:key,
+    key:key
+  }))
+  rows.forEach(row=>{
+    sheet.addRow(row)
+  })
+  await workbook.xlsx.writeFile(filePath)
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/utils/file.utils.js
+================================================
+import fs from "fs"
+import path from "path"
+import env from "../config/env.js"
+
+export function ensureDir(dirPath) {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true })
+  }
+}
+
+export function getBatchStoragePath(batchId) {
+  const dir = path.join(env.STORAGE_PATH, "uploads", "batches", batchId)
+  ensureDir(dir)
+  return dir
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/utils/paination.js
+================================================
+export function getPagination(query) {
+
+  const page = Math.max(parseInt(query.page || 1), 1)
+  const limit = Math.min(parseInt(query.limit || 20), 100)
+  const offset = (page - 1) * limit
+  return { page, limit, offset }
+}
+
+
+================================================
+FILE: authdoc_backend/services/api/src/validators/batch.validator.js
+================================================
+import Joi from "joi"
+
+export const batchSchema = Joi.object({
+
+  batch_name: Joi.string().required(),
+
+  document_type: Joi.string()
+    .valid("birth", "marriage", "death")
+    .required(),
+
+  priority: Joi.string()
+    .valid("low", "normal", "high")
+    .default("normal")
+
+})
+
+
+================================================
+FILE: authdoc_backend/services/api/src/validators/export.validator.js
+================================================
+import Joi from "joi"
+
+export const exportSchema = Joi.object({
+
+  batch_id: Joi.string().uuid().required(),
+
+  export_type: Joi.string()
+    .valid("excel")
+    .required()
+
+})
+
+
+================================================
+FILE: authdoc_backend/services/api/src/validators/schema.validator.js
+================================================
+import Joi from "joi"
+
+export const schemaDefinition = Joi.object({
+  document_type:Joi.string()
+    .valid("birth","marriage","death")
+    .required(),
+  language:Joi.string()
+    .length(2)
+    .required(),
+  schema_version:Joi.string()
+    .required()
+
+})
+
+
+================================================
+FILE: authdoc_backend/services/ocr-service/main.py
+================================================
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from typing import List
+import tempfile
+import shutil
+import os
+import time
+from loguru import logger
+
+from ocr.chandra import run_ocr
+from processing.extractor import extract_fields
+from processing.record_builder import group_pages
+
+app = FastAPI(title="AuthDoc OCR Service")
+
+
+# -------------------------------
+# UTIL â€” SAVE TEMP FILE
+# -------------------------------
+def save_temp(file: UploadFile) -> str:
+    filename = file.filename or "upload.png"
+    suffix = os.path.splitext(filename)[-1] or ".png"
+
+    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    try:
+        shutil.copyfileobj(file.file, tmp)
+        return tmp.name
+    finally:
+        tmp.close()
+
+
+# -------------------------------
+# UTIL â€” CLEAN FILE
+# -------------------------------
+def safe_remove(path: str):
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except Exception as e:
+        logger.warning(f"Failed to delete temp file: {e}")
+
+
+# -------------------------------
+# CORE â€” PROCESS SINGLE FILE
+# -------------------------------
+def process_file(path: str):
+    result = run_ocr(path)
+
+    # -------------------------------
+    # CASE 1 â€” PIPELINE STRUCTURED OUTPUT
+    # -------------------------------
+    if isinstance(result, dict) and result:
+        return {
+            "mode": "pipeline",
+            "fields": result
+        }
+
+    # -------------------------------
+    # CASE 2 â€” BLOCKS (fallback OCR)
+    # -------------------------------
+    blocks = result if isinstance(result, list) else []
+
+    if not blocks:
+        return {
+            "mode": "failed",
+            "error": "OCR_FAILED",
+            "blocks": [],
+            "fields": {}
+        }
+
+    fields = extract_fields(blocks)
+
+    return {
+        "mode": "fallback",
+        "blocks": blocks,
+        "fields": fields
+    }
+
+
+# -------------------------------
+# ENDPOINT â€” SINGLE FILE
+# -------------------------------
+@app.post("/extract")
+async def extract(file: UploadFile = File(...)):
+    start = time.time()
+    path = save_temp(file)
+
+    try:
+        result = process_file(path)
+
+        if result.get("mode") == "failed":
+            return {
+                "status": "failed",
+                "error": result.get("error"),
+                "time": time.time() - start
+            }
+
+        return {
+            "status": "success",
+            "mode": result["mode"],
+            "data": result,
+            "time": time.time() - start
+        }
+
+    except Exception as e:
+        logger.exception("Extraction failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+        safe_remove(path)
+
+
+# -------------------------------
+# ENDPOINT â€” MULTI FILE (REAL USE CASE)
+# -------------------------------
+@app.post("/extract-batch")
+async def extract_batch(files: List[UploadFile] = File(...)):
+    start = time.time()
+
+    if not files:
+        raise HTTPException(status_code=400, detail="No files uploaded")
+
+    temp_paths = []
+    pages_blocks = []
+
+    try:
+        # -------------------------------
+        # STEP 1 â€” OCR ALL FILES
+        # -------------------------------
+        for file in files:
+            path = save_temp(file)
+            temp_paths.append(path)
+
+            result = run_ocr(path)
+
+            # pipeline case â†’ already structured
+            if isinstance(result, dict) and result:
+                pages_blocks.append({"pipeline": result})
+                continue
+
+            blocks = result if isinstance(result, list) else []
+
+            if blocks:
+                pages_blocks.append(blocks)
+
+        if not pages_blocks:
+            return {
+                "status": "failed",
+                "error": "ALL_OCR_FAILED",
+                "records": []
+            }
+
+        # -------------------------------
+        # STEP 2 â€” GROUP INTO RECORDS
+        # -------------------------------
+        records = group_pages(pages_blocks)
+
+        results = []
+
+        # -------------------------------
+        # STEP 3 â€” EXTRACT EACH RECORD
+        # -------------------------------
+        for record in records:
+            # pipeline shortcut
+            if isinstance(record, dict) and "pipeline" in record:
+                results.append(record["pipeline"])
+                continue
+
+            all_blocks = [
+                b for page in record["pages"] for b in page
+            ]
+
+            fields = extract_fields(all_blocks)
+
+            results.append(fields)
+
+        return {
+            "status": "success",
+            "records": results,
+            "total_records": len(results),
+            "time": time.time() - start
+        }
+
+    except Exception as e:
+        logger.exception("Batch extraction failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+        for p in temp_paths:
+            safe_remove(p)
+
+
+================================================
+FILE: authdoc_backend/services/ocr-service/requirements.txt
+================================================
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+python-multipart==0.0.9
+
+paddleocr==2.7.3
+paddlepaddle==2.6.2
+paddleocr==2.7.3
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+# install manually:
+# pip install paddlepaddle==2.6.2
+
+opencv-python-headless==4.9.0.80
+pillow==10.3.0
+numpy==1.26.4
+
+scikit-learn==1.4.2
+requests==2.32.3
+rapidfuzz==3.9.3
+regex==2024.5.15
+unidecode==1.3.8
+transformers>=4.40.0
+torch>=2.2.0
+torchvision>=0.17.0
+pydantic==2.7.1
+loguru==0.7.2
+orjson==3.10.3
+httpx==0.27.0
+tenacity==8.2.3
+
+
+================================================
+FILE: authdoc_backend/services/ocr-service/dictionaries/names.json
+================================================
+[
+  "joseph",
+  "thomas",
+  "marie",
+  "anne",
+  "euphrasie",
+  "pierre",
+  "narcisse",
+  "devaux",
+  "troisfontaines",
+  "roissach",
+  "damoiseau",
+  "henrard"
+]
+
+
+================================================
+FILE: authdoc_backend/services/ocr-service/ocr/chandra.py
+================================================
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 3968: character maps to <undefined>
+
+
+================================================
+FILE: authdoc_backend/services/ocr-service/ocr/trocr.py
+================================================
+from transformers import TrOCRProcessor, VisionEncoderDecoderModel
+from PIL import Image
+import torch
+
+# Global variables for lazy loading
+processor = None
+model = None
+device = "cpu"
+
+def load_models():
+    global processor, model
+    if model is None:
+        print("⏳ Loading TrOCR models (first time run)...")
+        processor = TrOCRProcessor.from_pretrained("microsoft/trocr-base-handwritten")
+        model = VisionEncoderDecoderModel.from_pretrained("microsoft/trocr-base-handwritten").to(device)
+        print("✅ TrOCR models loaded.")
+
+def run_trocr(image_path):
+    load_models()  # Ensures models are loaded
+    image = Image.open(image_path).convert("RGB")
+    pixel_values = processor(images=image, return_tensors="pt").pixel_values.to(device)
+    
+    with torch.no_grad():
+        generated_ids = model.generate(pixel_values)
+        
+    text = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+    print(text)
+    return text.lower()
+
+
+================================================
+FILE: authdoc_backend/services/ocr-service/processing/extractor.py
+================================================
+import json
+import os
+from typing import List, Dict
+from rapidfuzz import process
+
+def load_names():
+    base = os.path.dirname(os.path.dirname(__file__))
+    path = os.path.join(base, "dictionaries", "names.json")
+    if not os.path.exists(path):
+        return []
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+NAMES_DICT = load_names()
+# Added "et" and "en" as separators rather than just noise
+SEPARATORS = {"et", "en"}
+NOISE_KEYWORDS = {"nÂ°", "mariage", "volume", "case", "feuillet", "acte", "registre"}
+
+def is_valid_name_token(w: str) -> bool:
+    clean_w = w.lower().strip()
+    return len(clean_w) >= 3 and clean_w not in NOISE_KEYWORDS and clean_w not in SEPARATORS
+
+def fuzzy_correct(word: str) -> str:
+    if not NAMES_DICT: return word
+    # Scored high at 85 to prevent "hallucinating" names from noise
+    match_data = process.extractOne(word, NAMES_DICT)
+    if match_data:
+        match, score, _ = match_data
+        return match if score > 85 else word
+    return word
+
+def extract_fields(blocks: List[Dict]):
+    if not blocks:
+        return {"Groom": "Manual Check", "Bride": "Manual Check"}
+
+    # 1. Identify Left Column with stricter bounds
+    # Find min_x but ignore outliers (noise at the very edge)
+    sorted_xs = sorted([b["x"] for b in blocks])
+    min_x = sorted_xs[0] if sorted_xs else 0
+    
+    # 2. Extract Margin Elements and Body Separately
+    # Margin is usually in the first 30% of document width
+    margin_elements = [b for b in blocks if b["x"] < min_x + 250]
+    margin_elements.sort(key=lambda b: b["y"])
+
+    results = []
+    current_person_words = []
+
+    # 3. Semantic Splitting (The "Separator" Rule)
+    for b in margin_elements:
+        text_val = b["text"].lower().strip()
+        
+        # If we hit "et" or "en", the current person is complete
+        if text_val in SEPARATORS:
+            if current_person_words:
+                results.append(" ".join(current_person_words))
+                current_person_words = []
+            continue
+
+        clean_w = text_val.replace(",", "").replace(".", "")
+        if is_valid_name_token(clean_w):
+            current_person_words.append(fuzzy_correct(clean_w))
+
+    # Add the last person found
+    if current_person_words:
+        results.append(" ".join(current_person_words))
+
+    # 4. Final Verification
+    # Filter out entries that are too short to be full names
+    final_names = [name.title() for name in results if len(name.split()) >= 2]
+
+    return {
+        "Groom": final_names[0] if len(final_names) > 0 else "Manual Check",
+        "Bride": final_names[1] if len(final_names) > 1 else "Manual Check"
+    }
+
+
+================================================
+FILE: authdoc_backend/services/ocr-service/processing/record_builder.py
+================================================
+def group_pages(blocks_per_page):
+    records = []
+    current = None
+
+    for page in blocks_per_page:
+        if is_record_start(page):
+            if current:
+                records.append(current)
+
+            current = {"pages": [page]}
+        else:
+            if current:
+                current["pages"].append(page)
+
+    if current:
+        records.append(current)
+
+    return records
+def is_record_start(page_blocks):
+    texts = [b["text"].lower() for b in page_blocks]
+
+    has_marriage = any("mariage" in t for t in texts)
+
+    left_margin_names = [
+        b for b in page_blocks
+        if b["x"] < 300 and len(b["text"].split()) >= 2
+    ]
+
+    return has_marriage and len(left_margin_names) >= 2
+
+def split_page_into_records(page_blocks):
+    # cluster by vertical separation (y-axis gaps)
+    lines = sorted(page_blocks, key=lambda b: b["y"])
+
+    chunks = []
+    current = [lines[0]]
+
+    for prev, curr in zip(lines, lines[1:]):
+        if curr["y"] - prev["y"] > 120:  # gap threshold
+            chunks.append(current)
+            current = []
+        current.append(curr)
+
+    if current:
+        chunks.append(current)
+
+    return chunks
+
+
+================================================
+FILE: authdoc_backend/services/workers/src/worker.js
+================================================
+import "dotenv/config"
+import "./workers/zip.worker.js"
+import "./workers/ocr.worker.js"
+import "./workers/extraction.worker.js"
+import "./workers/validation.worker.js"
+import "./workers/export.worker.js"
+
+console.log("AuthDoc Workers started")
+
+
+console.log("DB URL:", process.env.DATABASE_URL)
+
+
+================================================
+FILE: authdoc_backend/services/workers/src/config/logger.js
+================================================
+import pino from "pino"
+
+const logger = pino({
+  level: "info",
+  transport: {
+    target: "pino-pretty"
+  }
+})
+
+export default logger
+
+
+================================================
+FILE: authdoc_backend/services/workers/src/config/redis.js
+================================================
+import IORedis from "ioredis"
+
+const redis = new IORedis({
+  host: "127.0.0.1",   // âœ… FIX
+  port: 6379,
+  maxRetriesPerRequest: null
+})
+
+export default redis
+
+
+================================================
+FILE: authdoc_backend/services/workers/src/services/export.service.js
+================================================
+import db from "../../../../shared/db/postgres.js"
+import { generateExcel } from "../../../aip/src/utils/excel.utils.js"
+
+export async function generateBatchExport(exportId, batchId) {
+  const docs = await db.query(
+    `SELECT * FROM documents
+     WHERE batch_id=$1`,
+    [batchId]
+  )
+
+  const filePath = `storage/exports/${exportId}.xlsx`
+
+  await generateExcel(filePath, docs.rows)
+
+  await db.query(
+    `UPDATE exports
+     SET file_path=$1,status='completed'
+     WHERE export_id=$2`,
+    [filePath, exportId]
+  )
+}
+
+
+================================================
+FILE: authdoc_backend/services/workers/src/services/extraction.service.js
+================================================
+import db from "../../../../shared/db/postgres.js"
+import { extractFields } from "../utils/schema.mapper.js"
+import { addValidationJob } from "../../../../shared/queues/validation.queue.js"
+
+export async function processExtraction(documentId, rawText) {
+  const schemaFields = await db.query(
+    `SELECT * FROM schema_fields`
+  )
+  const fields = extractFields(rawText, schemaFields.rows)
+  for (const f of fields) {
+    await db.query(
+      `INSERT INTO extracted_fields
+       (document_id,field_name,field_value,confidence_score)
+       VALUES($1,$2,$3,$4)`,
+      [documentId, f.field_name, f.field_value, f.confidence_score]
+    )
+  }
+  await addValidationJob({
+    documentId
+  })
+}
+
+
+================================================
+FILE: authdoc_backend/services/workers/src/services/ocr.service.js
+================================================
+import { runOCR } from "../utils/ocr.client.js"
+import db from "../../../../shared/db/postgres.js"
+import { addExtractionJob } from "../../../../shared/queues/extraction.queue.js"
+
+export async function processOCR(documentId, imagePath) {
+  const result = await runOCR(imagePath)
+  await db.query(
+    `INSERT INTO ocr_results(document_id,raw_text,avg_confidence)
+     VALUES($1,$2,$3)`,
+    [documentId, result.raw_text, result.avg_confidence]
+  )
+  await addExtractionJob({
+    documentId,
+    rawText: result.raw_text
+  })
+}
+
+
+================================================
+FILE: authdoc_backend/services/workers/src/services/validation.service.js
+================================================
+import db from "../../../../shared/db/postgres.js"
+
+export async function validateDocument(documentId) {
+  const fields = await db.query(
+    `SELECT * FROM extracted_fields
+     WHERE document_id=$1`,
+    [documentId]
+  )
+  let status = "VERIFIED"
+  for (const f of fields.rows) {
+    if (!f.field_value) {
+      status = "MISSING"
+      break
+    }
+    if (f.confidence_score < 0.7) {
+      status = "LOW_CONFIDENCE"
+    }
+  }
+  await db.query(
+    `UPDATE documents
+     SET validation_status=$1
+     WHERE document_id=$2`,
+    [status, documentId]
+  )
+}
+
+
+================================================
+FILE: authdoc_backend/services/workers/src/services/zip.service.js
+================================================
+import { unzipImages } from "../utils/unzip.utils.js"
+import { addOCRJob } from "../../../../shared/queues/ocr.queue.js"
+import db from "../../../../shared/db/postgres.js"
+
+export async function processZip(batchId, zipPath) {
+  const outputDir = `storage/uploads/batches/${batchId}`
+  const images = await unzipImages(zipPath, outputDir)
+  for (const image of images) {
+    const doc = await db.query(
+      `INSERT INTO documents(batch_id,file_path)
+       VALUES($1,$2)
+       RETURNING document_id`,
+      [batchId, image]
+    )
+    await addOCRJob({
+      documentId: doc.rows[0].document_id,
+      imagePath: image
+    })
+  }
+}
+
+
+================================================
+FILE: authdoc_backend/services/workers/src/utils/ocr.client.js
+================================================
+import axios from "axios"
+
+export async function runOCR(imagePath) {
+  const response = await axios.post(
+    process.env.OCR_SERVICE_URL + "/extract",
+    {
+      image_path: imagePath
+    }
+  )
+  return response.data
+}
+
+
+================================================
+FILE: authdoc_backend/services/workers/src/utils/schema.mapper.js
+================================================
+export function extractFields(rawText, schemaFields) {
+  const results = []
+  for (const field of schemaFields) {
+    const keyword = field.mapping_keywords
+    const regex = new RegExp(keyword + "\\s*(.*)", "i")
+    const match = rawText.match(regex)
+    if (match) {
+      results.push({
+        field_name: field.field_name,
+        field_value: match[1].trim(),
+        confidence_score: 0.8
+      })
+    } else {
+      results.push({
+        field_name: field.field_name,
+        field_value: null,
+        confidence_score: 0
+      })
+    }
+  }
+  return results
+}
+
+
+================================================
+FILE: authdoc_backend/services/workers/src/utils/unzip.utils.js
+================================================
+import fs from "fs"
+import unzipper from "unzipper"
+import path from "path"
+
+export async function unzipImages(zipPath, outputDir) {
+  const imagePaths = []
+
+  // ensure base output directory exists
+  fs.mkdirSync(outputDir, { recursive: true })
+
+  await fs.createReadStream(zipPath)
+    .pipe(unzipper.Parse())
+    .on("entry", entry => {
+      const fileName = entry.path
+
+      if (/\.(jpg|jpeg|png|tiff)$/i.test(fileName)) {
+        const outPath = path.join(outputDir, fileName)
+
+        // ensure nested directories exist
+        fs.mkdirSync(path.dirname(outPath), { recursive: true })
+
+        entry.pipe(fs.createWriteStream(outPath))
+        imagePaths.push(outPath)
+      } else {
+        entry.autodrain()
+      }
+    })
+    .promise()
+
+  return imagePaths
+}
+
+
+================================================
+FILE: authdoc_backend/services/workers/src/workers/export.worker.js
+================================================
+import { Worker } from "bullmq"
+import redis from "../config/redis.js"
+import { generateBatchExport } from "../services/export.service.js"
+
+new Worker(
+  "export_queue",
+  async job => {
+    const { exportId, batchId } = job.data
+    await generateBatchExport(exportId, batchId)
+  },
+  { connection: redis }
+)
+
+
+================================================
+FILE: authdoc_backend/services/workers/src/workers/extraction.worker.js
+================================================
+import { Worker } from "bullmq"
+import redis from "../config/redis.js"
+import { processExtraction } from "../services/extraction.service.js"
+
+const worker = new Worker(
+  "extraction_queue",
+  async job => {
+    console.log("[EXTRACTION] picked job:", job.id, job.data)
+
+    const { documentId, rawText } = job.data
+    await processExtraction(documentId, rawText)
+
+    console.log("[EXTRACTION] completed job:", job.id)
+  },
+  { connection: redis }
+)
+
+worker.on("completed", job => {
+  console.log("[EXTRACTION] worker completed:", job.id)
+})
+
+worker.on("failed", (job, err) => {
+  console.error("[EXTRACTION] worker failed:", job?.id, err.message)
+})
+
+worker.on("error", err => {
+  console.error("[EXTRACTION] worker error:", err.message)
+})
+
+
+================================================
+FILE: authdoc_backend/services/workers/src/workers/ocr.worker.js
+================================================
+import { Worker } from "bullmq"
+import redis from "../config/redis.js"
+import { processOCR } from "../services/ocr.service.js"
+
+const worker = new Worker(
+  "ocr_queue",
+  async job => {
+    console.log("[OCR] picked job:", job.id, job.data)
+
+    const { documentId, imagePath } = job.data
+    await processOCR(documentId, imagePath)
+
+    console.log("[OCR] completed job:", job.id)
+  },
+  { connection: redis }
+)
+
+worker.on("completed", job => {
+  console.log("[OCR] worker completed:", job.id)
+})
+
+worker.on("failed", (job, err) => {
+  console.error("[OCR] worker failed:", job?.id, err.message)
+})
+
+worker.on("error", err => {
+  console.error("[OCR] worker error:", err.message)
+})
+
+
+================================================
+FILE: authdoc_backend/services/workers/src/workers/validation.worker.js
+================================================
+import { Worker } from "bullmq"
+import redis from "../config/redis.js"
+import { validateDocument } from "../services/validation.service.js"
+
+const worker = new Worker(
+  "validation_queue",
+  async job => {
+    console.log("[VALIDATION] picked job:", job.id, job.data)
+
+    const { documentId } = job.data
+    await validateDocument(documentId)
+
+    console.log("[VALIDATION] completed job:", job.id)
+  },
+  { connection: redis }
+)
+
+worker.on("completed", job => {
+  console.log("[VALIDATION] worker completed:", job.id)
+})
+
+worker.on("failed", (job, err) => {
+  console.error("[VALIDATION] worker failed:", job?.id, err.message)
+})
+
+worker.on("error", err => {
+  console.error("[VALIDATION] worker error:", err.message)
+})
+
+
+================================================
+FILE: authdoc_backend/services/workers/src/workers/zip.worker.js
+================================================
+import { Worker } from "bullmq"
+import redis from "../config/redis.js"
+import { processZip } from "../services/zip.service.js"
+
+const worker = new Worker(
+  "zip_queue",
+  async job => {
+    console.log("[ZIP] picked job:", job.id, job.data)
+
+    const { batchId, zipPath } = job.data
+    await processZip(batchId, zipPath)
+
+    console.log("[ZIP] completed job:", job.id)
+  },
+  { connection: redis }
+)
+
+worker.on("completed", job => {
+  console.log("[ZIP] worker completed:", job.id)
+})
+
+worker.on("failed", (job, err) => {
+  console.error("[ZIP] worker failed:", job?.id, err.message)
+})
+
+worker.on("error", err => {
+  console.error("[ZIP] worker error:", err.message)
+})
+
+
+================================================
+FILE: authdoc_backend/shared/constants/batchStatus.js
+================================================
+export const BATCH_STATUS = {
+  QUEUED: "queued",
+  PROCESSING: "processing",
+  COMPLETED: "completed",
+  FAILED: "failed"
+}
+
+export default BATCH_STATUS
+
+
+================================================
+FILE: authdoc_backend/shared/constants/documentStatus.js
+================================================
+export const DOCUMENT_STATUS = {
+  VERIFIED: "VERIFIED",
+  FLAGGED: "FLAGGED",
+  LOW_CONFIDENCE: "LOW_CONFIDENCE",
+  MISSING: "MISSING"
+}
+
+export default DOCUMENT_STATUS
+
+
+================================================
+FILE: authdoc_backend/shared/constants/queueNames.js
+================================================
+export const QUEUE_NAMES = {
+  ZIP: "zip_queue",
+  OCR: "ocr_queue",
+  EXTRACTION: "extraction_queue",
+  VALIDATION: "validation_queue",
+  EXPORT: "export_queue"
+}
+export default QUEUE_NAMES
+
+
+================================================
+FILE: authdoc_backend/shared/db/postgres.js
+================================================
+import pkg from "pg"
+
+const { Pool } = pkg
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 50,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000
+})
+pool.on("connect", () => {
+  console.log("PostgreSQL connected")
+})
+
+pool.on("error", (err) => {
+  console.error("PostgreSQL error", err)
+})
+export default pool
+
+
+================================================
+FILE: authdoc_backend/shared/logger/logger.js
+================================================
+import pino from "pino"
+
+const logger = pino({
+  level: process.env.LOG_LEVEL || "info",
+  transport: {
+    target: "pino-pretty"
+  }
+})
+export default logger
+
+
+================================================
+FILE: authdoc_backend/shared/queues/export.queue.js
+================================================
+import { Queue } from "bullmq"
+import redis from "../../services/workers/src/config/redis.js"
+import { QUEUE_NAMES } from "../constants/queueNames.js"
+
+export const exportQueue = new Queue(
+  QUEUE_NAMES.EXPORT,
+  { connection: redis }
+)
+
+export async function addExportJob(data) {
+  await exportQueue.add(
+    "generate_export",
+    data,
+    {
+      attempts: 3,
+      backoff: 5000
+    }
+  )
+}
+
+
+================================================
+FILE: authdoc_backend/shared/queues/extraction.queue.js
+================================================
+import { Queue } from "bullmq"
+import redis from "../../services/workers/src/config/redis.js"
+import { QUEUE_NAMES } from "../constants/queueNames.js"
+
+export const extractionQueue = new Queue(
+  QUEUE_NAMES.EXTRACTION,
+  { connection: redis }
+)
+
+export async function addExtractionJob(data) {
+  await extractionQueue.add(
+    "process_extraction",
+    data
+  )
+}
+
+
+================================================
+FILE: authdoc_backend/shared/queues/ocr.queue.js
+================================================
+import { Queue } from "bullmq"
+import redis from "../../services/workers/src/config/redis.js"
+import { QUEUE_NAMES } from "../constants/queueNames.js"
+
+export const ocrQueue = new Queue(
+  QUEUE_NAMES.OCR,
+  { connection: redis }
+)
+
+export async function addOCRJob(data) {
+  await ocrQueue.add(
+    "process_ocr",
+    data,
+    {
+      attempts: 3,
+      backoff: 2000
+    }
+  )
+}
+
+
+================================================
+FILE: authdoc_backend/shared/queues/validation.queue.js
+================================================
+import { Queue } from "bullmq"
+import redis from "../../services/workers/src/config/redis.js"
+import { QUEUE_NAMES } from "../constants/queueNames.js"
+
+export const validationQueue = new Queue(
+  QUEUE_NAMES.VALIDATION,
+  { connection: redis }
+)
+
+export async function addValidationJob(data) {
+  await validationQueue.add(
+    "process_validation",
+    data
+  )
+}
+
+
+================================================
+FILE: authdoc_backend/shared/queues/zip.queue.js
+================================================
+import { Queue } from "bullmq"
+import redis from "../../services/workers/src/config/redis.js"
+import { QUEUE_NAMES } from "../constants/queueNames.js"
+
+export const zipQueue = new Queue(
+  QUEUE_NAMES.ZIP,
+  { connection: redis }
+)
+
+export async function addZipJob(data) {
+  await zipQueue.add(
+    "process_zip",
+    data,
+    {
+      attempts: 5,
+      backoff: {
+        type: "exponential",
+        delay: 3000
+      },
+      removeOnComplete: true
+    }
+  )
+}
+

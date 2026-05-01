@@ -63,7 +63,7 @@ dist/
 /tmp/
 temp/
 uploads/
-
+*.txt
 ############################
 # OCR Models / Large Assets
 ############################
