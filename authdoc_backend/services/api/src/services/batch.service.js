@@ -10,6 +10,7 @@ export class BatchService {
       const batch = await BatchRepository.createBatch(data)
 
       const batchDir = getBatchStoragePath(batch.batch_id)
+      fs.mkdirSync(batchDir, { recursive: true })
       const newZipPath = path.join(batchDir, "input.zip")
 
       fs.renameSync(zipPath, newZipPath)
