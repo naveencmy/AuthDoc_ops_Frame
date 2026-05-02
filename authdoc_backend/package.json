@@ -7,6 +7,8 @@
     "api": "node services/api/src/server.js"
   },
   "dependencies": {
+    "@bull-board/api": "^7.0.0",
+    "@bull-board/express": "^7.0.0",
     "axios": "^1.13.6",
     "bullmq": "^5.71.1",
     "cors": "^2.8.6",

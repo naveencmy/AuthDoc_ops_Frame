@@ -7,9 +7,7 @@ from typing import Dict, Any, List, Optional
 import google.generativeai as genai
 from dotenv import load_dotenv
 from google.generativeai.types import GenerationConfig
-# -------------------------
-# ENV SETUP
-# -------------------------
+
 load_dotenv()
 
 API_KEY = os.getenv("GEMINI_API_KEY")
@@ -79,10 +77,6 @@ def build_prompt(text: str, schema: Dict[str, Any]) -> str:
     """
 
 
-# -------------------------
-# CORE LLM CALL
-# -------------------------
-
 def call_gemini(prompt: str, retries: int = 3, delay: float = 1.5) -> Optional[str]:
     for attempt in range(retries):
         try:
@@ -105,10 +99,6 @@ def call_gemini(prompt: str, retries: int = 3, delay: float = 1.5) -> Optional[s
     return None
 
 
-# -------------------------
-# MAIN EXTRACTION FUNCTION
-# -------------------------
-
 def extract_with_llm(text: str, schema: Dict[str, Any]) -> Dict[str, Any]:
 
     text = clean_text(text)
@@ -125,14 +115,11 @@ def extract_with_llm(text: str, schema: Dict[str, Any]) -> Dict[str, Any]:
             results.append({})
             continue
 
-        print("\n[RAW GEMINI OUTPUT]\n", raw_output)
+        print("\n[RAW  OUTPUT]\n", raw_output)
 
         parsed = safe_parse(raw_output)
         results.append(parsed)
 
-    # -------------------------
-    # MERGE RESULTS
-    # -------------------------
     final = {}
 
     for key in schema.keys():

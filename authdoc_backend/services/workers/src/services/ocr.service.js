@@ -29,25 +29,66 @@ export async function processOCR(documentId, imagePath) {
     throw new Error("Batch not found")
   }
   const { batch_id, document_type, schema_version } = batchRes.rows[0]
-  const schemaRes = await db.query(
-  `SELECT sf.field_name, sf.data_type, sf.required
-   FROM schema_fields sf
-   JOIN schema_definitions sd
-   ON sf.schema_id = sd.schema_id
-   WHERE sd.document_type=$1
-   AND sd.language=$2
-   AND sd.version=$3`,
-  [document_type, "default", schema_version] // or from batch
-)
+  
+  console.log("[OCR] Looking up schema:", { document_type, schema_version })
+  
+  let schemaRes = await db.query(
+    `SELECT sf.field_name, sf.data_type, sf.required, sf.confidence_min
+     FROM schema_fields sf
+     JOIN schema_definitions sd
+     ON sf.schema_id = sd.schema_id
+     WHERE sd.document_type=$1
+     AND sd.language=$2
+     AND sd.version=$3
+     ORDER BY sf.field_name ASC`,
+    [document_type, "default", schema_version]
+  )
+  
+  // Fallback: try without language filter if not found
   if (!schemaRes.rows.length) {
-    throw new Error("Schema not found")
+    console.warn("[OCR] Schema not found with language 'default', trying without language filter")
+    schemaRes = await db.query(
+      `SELECT sf.field_name, sf.data_type, sf.required, sf.confidence_min
+       FROM schema_fields sf
+       JOIN schema_definitions sd
+       ON sf.schema_id = sd.schema_id
+       WHERE sd.document_type=$1
+       AND sd.version=$2
+       ORDER BY sf.field_name ASC`,
+      [document_type, schema_version]
+    )
   }
+  
+  // Final fallback: try any schema for this document type
+  if (!schemaRes.rows.length) {
+    console.warn("[OCR] Schema not found with version, trying latest for document type")
+    schemaRes = await db.query(
+      `SELECT sf.field_name, sf.data_type, sf.required, sf.confidence_min
+       FROM schema_fields sf
+       JOIN schema_definitions sd
+       ON sf.schema_id = sd.schema_id
+       WHERE sd.document_type=$1
+       ORDER BY sd.version DESC, sf.field_name ASC
+       LIMIT 100`,
+      [document_type]
+    )
+  }
+  
+  if (!schemaRes.rows.length) {
+    throw new Error(`Schema not found for document_type=${document_type}, version=${schema_version}`)
+  }
+  
+  // Build complete schema with all available fields
   const schema = schemaRes.rows.map(f => ({
     field_name: f.field_name,
     data_type: f.data_type,
-    required: f.required
+    required: f.required,
+    confidence_threshold: f.confidence_min
   }))
-  console.log("[OCR] Schema fields:", schema.length)
+  
+  console.log("[OCR] Total schema fields from DB:", schema.length)
+  console.log("[OCR] Sending fields to OCR:", JSON.stringify(schema, null, 2))
+  
   let lastError = null
 
   for (let attempt = 1; attempt <= MAX_OCR_RETRIES; attempt++) {
@@ -79,6 +120,20 @@ export async function processOCR(documentId, imagePath) {
     } catch (err) {
       lastError = err
       console.warn(`[OCR] Attempt ${attempt} failed:`, err.message)
+      
+      // Don't retry on non-recoverable errors
+      const nonRecoverable = [
+        "Schema not found",
+        "Document not found",
+        "Batch not found",
+        "Invalid OCR structure"
+      ]
+      const isNonRecoverable = nonRecoverable.some(msg => err.message?.includes(msg))
+      
+      if (isNonRecoverable) {
+        console.error("[OCR] Non-recoverable error, skipping retries:", err.message)
+        break
+      }
 
       if (attempt === MAX_OCR_RETRIES) break
     }

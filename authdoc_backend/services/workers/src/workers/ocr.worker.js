@@ -2,6 +2,8 @@ import { Worker } from "bullmq"
 import redis from "../config/redis.js"
 import { processOCR } from "../services/ocr.service.js"
 
+console.log("[OCR Worker] Initializing...")
+
 const worker = new Worker(
   "ocr_queue",
   async job => {
@@ -15,6 +17,10 @@ const worker = new Worker(
   { connection: redis }
 )
 
+worker.on("ready", () => {
+  console.log("[OCR Worker] Ready and listening for jobs")
+})
+
 worker.on("completed", job => {
   console.log("[OCR] worker completed:", job.id)
 })
@@ -24,5 +30,7 @@ worker.on("failed", (job, err) => {
 })
 
 worker.on("error", err => {
-  console.error("[OCR] worker error:", err.message)
+  console.error(" [OCR] worker error:", err.message)
 })
+
+export default worker

@@ -10,7 +10,7 @@ import redis from "./config/redis.js"
 
 import { requestLogger } from "./middleware/request.logger.js"
 import { errorMiddleware } from "./middleware/error.middleware.js"
-
+import { serverAdapter } from "./dashboard/queue.dashboard.js"
 import batchRoutes from "./routes/batch.routes.js"
 import documentRoutes from "./routes/document.routes.js"
 import schemaRoutes from "./routes/schema.routes.js"
@@ -55,7 +55,7 @@ app.use("/api/exports", exportRoutes)
 app.use("/api/dashboard", dashboardRoutes)
 app.use("/api/settings", settingsRoutes)
 
-// error handler
+app.use("/admin/queues", serverAdapter.getRouter())
 app.use(errorMiddleware)
 
 const dirs = ["storage/uploads", "storage/extracted", "storage/exports"]

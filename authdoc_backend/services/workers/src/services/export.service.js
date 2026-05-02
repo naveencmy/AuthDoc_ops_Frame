@@ -1,4 +1,3 @@
-// workers/src/services/export.service.js
 import db from "../../../../shared/db/postgres.js"
 import ExcelJS from "exceljs"
 import fs from "fs"
