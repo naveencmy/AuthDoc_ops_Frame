@@ -101,3 +101,5 @@ C:/Users/*/AppData/Local/Temp/*
 *.tar.gz
 *.7z
 tesseract/
+
+digest.txt

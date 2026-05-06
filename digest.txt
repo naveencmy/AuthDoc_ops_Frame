@@ -1,6 +1,8 @@
 Directory structure:
 └── AuthDoc_ops_Frame/
     ├── README.md
+    ├── Modelfile
+    ├── TESTExample.json
     └── authdoc_backend/
         ├── docker-compose.yml
         ├── Dockerfile.worker
@@ -20,10 +22,10 @@ Directory structure:
         │   └── seed-db.js
         ├── services/
         │   ├── api/
-        │   │   ├── app.js
         │   │   ├── Dockerfile
-        │   │   ├── server.js
         │   │   └── src/
+        │   │       ├── app.js
+        │   │       ├── server.js
         │   │       ├── config/
         │   │       │   ├── database.js
         │   │       │   ├── env.js
@@ -36,6 +38,8 @@ Directory structure:
         │   │       │   ├── export.controller.js
         │   │       │   ├── schema.controller.js
         │   │       │   └── settings.controller.js
+        │   │       ├── dashboard/
+        │   │       │   └── queue.dashboard.js
         │   │       ├── jobs/
         │   │       │   ├── export.job.js
         │   │       │   ├── extraction.job.js
@@ -78,12 +82,10 @@ Directory structure:
         │   │           └── schema.validator.js
         │   ├── ocr-service/
         │   │   ├── main.py
-        │   │   ├── requirements.txt
         │   │   ├── dictionaries/
         │   │   │   └── names.json
         │   │   ├── ocr/
-        │   │   │   ├── chandra.py
-        │   │   │   └── trocr.py
+        │   │   │   └── chandra.py
         │   │   └── processing/
         │   │       ├── extractor.py
         │   │       └── record_builder.py
@@ -109,21 +111,25 @@ Directory structure:
         │               ├── ocr.worker.js
         │               ├── validation.worker.js
         │               └── zip.worker.js
-        └── shared/
-            ├── constants/
-            │   ├── batchStatus.js
-            │   ├── documentStatus.js
-            │   └── queueNames.js
-            ├── db/
-            │   └── postgres.js
-            ├── logger/
-            │   └── logger.js
-            └── queues/
-                ├── export.queue.js
-                ├── extraction.queue.js
-                ├── ocr.queue.js
-                ├── validation.queue.js
-                └── zip.queue.js
+        ├── shared/
+        │   ├── constants/
+        │   │   ├── batchStatus.js
+        │   │   ├── documentStatus.js
+        │   │   ├── priority.js
+        │   │   └── queueNames.js
+        │   ├── db/
+        │   │   └── postgres.js
+        │   ├── logger/
+        │   │   └── logger.js
+        │   └── queues/
+        │       ├── export.queue.js
+        │       ├── extraction.queue.js
+        │       ├── ocr.queue.js
+        │       ├── validation.queue.js
+        │       └── zip.queue.js
+        └── storage/
+            └── exports/
+                └── 1a08d489-ced3-4979-a8e3-10a1fbe95726.xlsx
 
 ================================================
 FILE: README.md
@@ -430,6 +436,52 @@ Never crash entire batch.
 
 
 ================================================
+FILE: Modelfile
+================================================
+FROM pshohel/kimi-k2.5:latest
+PARAMETER num_ctx 2048
+
+
+================================================
+FILE: TESTExample.json
+================================================
+{ 
+"Form_Type":	"Marriage Record (Acte de Mariage)",
+"Page_No":	3,
+"Record_No":	"NÂ° 3",
+"Event_Day":	13,
+"Event_Month":	"July",
+"Event_Year":	1901,
+"Event_Place_Municipality":	"FerriÃ¨res",
+"Event_Place_District":	"LiÃ¨ge",
+"Event_Place_Province":	"LiÃ¨ge",
+"Groom_Given":	"Jean Lambert",
+"Groom_Surname":	"Massuir",
+"Groom_Residence":	"Trembleur (Grembleur in text)",
+"Groom_Age":	"36 years and 3 months",
+"Groom_Birthplace":	"Trembleur (Grembleur)",
+"Groom_Birth_Day":	16,
+"Groom_Birth_Month":	"April",
+"Groom_Birth_Year":	1865,
+"Groom_Father_Given":	"Henry Joseph",
+"Groom_Father_Surname":	"Massuir",
+"Groom_Mother_Given":	"Marie Joseph",
+"Groom_Mother_Surname":	"Bracquers",
+"Bride_Given":	"Marie Joseph Pauline",
+"Bride_Surname":	"Briquet",
+"Bride_Residence":	"FerriÃ¨res",
+"Bride_Age":	"48 years and 10 months",
+"Bride_Birthplace":	"Dalhem",
+"Bride_Birth_Day":	14,
+"Bride_Birth_Month":	"September",
+"Bride_Birth_Year":	1852,
+"Bride_Father_Given":	"Henri Joseph",
+"Bride_Father_Surname":	"Briquet",
+"Bride_Mother_Given":	"Anne Marie",
+"Bride_Mother_Surname":	"Dethier"}
+
+
+================================================
 FILE: authdoc_backend/docker-compose.yml
 ================================================
 services:
@@ -453,6 +505,7 @@ RUN npm install
 COPY . .
 
 CMD ["node", "services/workers/src/worker.js"]
+CMD ["node","services/api/src/server.js"]
 
 
 ================================================
@@ -464,15 +517,17 @@ FILE: authdoc_backend/package.json
   "type": "module",
   "scripts": {
     "worker": "node services/workers/src/worker.js",
-    "api": "node services/aip/src/server.js"
+    "api": "node services/api/src/server.js"
   },
   "dependencies": {
+    "@bull-board/api": "^7.0.0",
+    "@bull-board/express": "^7.0.0",
     "axios": "^1.13.6",
     "bullmq": "^5.71.1",
     "cors": "^2.8.6",
     "dayjs": "^1.11.20",
     "dotenv": "^17.3.1",
-    "exceljs": "^3.4.0",
+    "exceljs": "^3.10.0",
     "express": "^5.2.1",
     "express-rate-limit": "^8.3.1",
     "helmet": "^8.1.0",
@@ -496,12 +551,17 @@ FILE: authdoc_backend/package.json
 FILE: authdoc_backend/infrastructure/docker/api.Dockerfile
 ================================================
 FROM node:20-alpine
+
 WORKDIR /app
-COPY services/api/package*.json ./
+
+COPY package*.json ./
 RUN npm install --production
-COPY services/api/src ./src
+
+COPY . .
+
 EXPOSE 4000
-CMD ["node","src/server.js"]
+
+CMD ["node","services/api/src/server.js"]
 
 
 ================================================
@@ -509,9 +569,10 @@ FILE: authdoc_backend/infrastructure/docker/ocr.Dockerfile
 ================================================
 FROM python:3.10-slim
 WORKDIR /app
-COPY services/ocr-service/app/requirements.txt .
+COPY services/ocr-service/runtime.txt ./
+COPY services/ocr-service/requirements.txt .
+COPY services/ocr-service .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY services/ocr-service/app .
 EXPOSE 8000
 CMD ["uvicorn","main:app","--host","0.0.0.0","--port","8000"]
 
@@ -520,11 +581,15 @@ CMD ["uvicorn","main:app","--host","0.0.0.0","--port","8000"]
 FILE: authdoc_backend/infrastructure/docker/worker.Dockerfile
 ================================================
 FROM node:20-alpine
+
 WORKDIR /app
-COPY services/workers/package*.json ./
+
+COPY package*.json ./
 RUN npm install --production
-COPY services/workers/src ./src
-CMD ["node","src/worker.js"]
+
+COPY . .
+
+CMD ["node","services/workers/src/worker.js"]
 
 
 ================================================
@@ -619,51 +684,7 @@ FILE: authdoc_backend/scripts/migrate-db.js
 ================================================
 FILE: authdoc_backend/scripts/seed-db.js
 ================================================
-[Empty file]
-
-
-================================================
-FILE: authdoc_backend/services/api/app.js
-================================================
-import express from "express"
-import cors from "cors"
-import helmet from "helmet"
-import rateLimit from "express-rate-limit"
-import { requestLogger } from "./middleware/request.logger.js"
-import { errorMiddleware } from "./middleware/error.middleware.js"
-
-import batchRoutes from "./routes/batch.routes.js"
-import documentRoutes from "./routes/document.routes.js"
-import schemaRoutes from "./routes/schema.routes.js"
-import exportRoutes from "./routes/export.routes.js"
-import dashboardRoutes from "./routes/dashboard.routes.js"
-import settingsRoutes from "./routes/settings.routes.js"
-
-const app = express()
-app.use(helmet())
-app.use(rateLimit({
-    windowMs:15*60*1000,
-    max:100
-}))
-app.use(cors())
-app.use(express.json())
-app.use(requestLogger)
-app.use(express.json({
-    limit:"10mb"
-}))
-app.use(requestLogger)
-app.get("/health",(req,res)=>{
-    res.json({status:"ok"})
-})
-
-app.use("/api/batches", batchRoutes)
-app.use("/api/documents", documentRoutes)
-app.use("/api/schemas", schemaRoutes)
-app.use("/api/exports", exportRoutes)
-app.use("/api/dashboard", dashboardRoutes)
-app.use("/api/settings", settingsRoutes)
-app.use(errorMiddleware)
-export default app
+Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x9d in position 5234: character maps to <undefined>
 
 
 ================================================
@@ -673,15 +694,97 @@ FILE: authdoc_backend/services/api/Dockerfile
 
 
 ================================================
-FILE: authdoc_backend/services/api/server.js
+FILE: authdoc_backend/services/api/src/app.js
 ================================================
-import app from "./app.js"
+import express from "express"
+import cors from "cors"
+import helmet from "helmet"
+import rateLimit from "express-rate-limit"
+import { randomUUID } from "crypto"
+import fs from "fs"
+import path from "path"
+import redis from "./config/redis.js"
+
+
+import { requestLogger } from "./middleware/request.logger.js"
+import { errorMiddleware } from "./middleware/error.middleware.js"
+import { serverAdapter } from "./dashboard/queue.dashboard.js"
+import batchRoutes from "./routes/batch.routes.js"
+import documentRoutes from "./routes/document.routes.js"
+import schemaRoutes from "./routes/schema.routes.js"
+import exportRoutes from "./routes/export.routes.js"
+import dashboardRoutes from "./routes/dashboard.routes.js"
+import settingsRoutes from "./routes/settings.routes.js"
+
+const app = express()
+
+// security
+app.use(helmet())
+app.use(cors())
+
+// request id (for tracing)
+app.use((req, res, next) => {
+  req.id = randomUUID()
+  next()
+})
+
+// rate limit
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100
+}))
+
+// body parser
+app.use(express.json({ limit: "10mb" }))
+
+// logging
+app.use(requestLogger)
+
+// health
+app.get("/health", (req, res) => {
+  res.json({ status: "ok" })
+})
+
+// routes
+app.use("/api/batches", batchRoutes)
+app.use("/api/documents", documentRoutes)
+app.use("/api/schemas", schemaRoutes)
+app.use("/api/exports", exportRoutes)
+app.use("/api/dashboard", dashboardRoutes)
+app.use("/api/settings", settingsRoutes)
+
+app.use("/admin/queues", serverAdapter.getRouter())
+app.use(errorMiddleware)
+
+const dirs = ["storage/uploads", "storage/extracted", "storage/exports"]
+await redis.ping()
+dirs.forEach(dir => {
+  const fullPath = path.resolve(dir)
+  if (!fs.existsSync(fullPath)) {
+    fs.mkdirSync(fullPath, { recursive: true })
+  }
+})
+export default app
+
+
+================================================
+FILE: authdoc_backend/services/api/src/server.js
+================================================
 import env from "./config/env.js"
+import app from "./app.js"
+
 import logger from "./config/logger.js"
+import db from "./config/database.js"
 
-app.listen(env.PORT, () => {
+const server = app.listen(process.env.PORT, () => {
+  logger.info(`AuthDoc API running on port ${process.env.PORT}`)
+})
 
-  logger.info(`AuthDoc API running on port ${env.PORT}`)
+// graceful shutdown
+process.on("SIGTERM", async () => {
+  logger.info("Shutting down...")
+  await db.end()
+  server.close(() => process.exit(0))
 })
 
 
@@ -692,18 +795,34 @@ import pkg from "pg"
 import env from "./env.js"
 
 const { Pool } = pkg
-export const db = new Pool({
+
+const db = new Pool({
   connectionString: env.DATABASE_URL,
-  max: 20,
+  ssl: {
+    require: true,
+    rejectUnauthorized: false
+  },
+  max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000
+  connectionTimeoutMillis: 10000
 })
-db.on("connect", () => {
-  console.log("PostgreSQL connected")
+console.log("USING DB:", env.DATABASE_URL)
+db.connect()
+  .then(client => {
+    console.log(" DB CONNECTED")
+    client.release()
+  })
+  .catch(err => {
+    console.error("DB CONNECTION FAILED:", err)
+  })
+process.on("unhandledRejection", (err) => {
+  console.error("UNHANDLED REJECTION:", err)
 })
-db.on("error", (err) => {
-  console.error("PostgreSQL error", err)
+
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT EXCEPTION:", err)
 })
+
 export default db
 
 
@@ -711,18 +830,28 @@ export default db
 FILE: authdoc_backend/services/api/src/config/env.js
 ================================================
 import dotenv from "dotenv"
-
 dotenv.config()
+
+function required(name) {
+  if (!process.env[name]) {
+    throw new Error(`Missing required env: ${name}`)
+  }
+  return process.env[name]
+}
 
 export const env = {
   NODE_ENV: process.env.NODE_ENV || "development",
   PORT: parseInt(process.env.PORT || "4000", 10),
-  DATABASE_URL: process.env.DATABASE_URL,
+
+  DATABASE_URL: required("DATABASE_URL"),
+  OCR_SERVICE_URL: required("OCR_SERVICE_URL"),
+
   REDIS_HOST: process.env.REDIS_HOST || "localhost",
   REDIS_PORT: parseInt(process.env.REDIS_PORT || "6379", 10),
-  STORAGE_PATH: process.env.STORAGE_PATH || "./storage",
-  OCR_SERVICE_URL: process.env.OCR_SERVICE_URL
+
+  STORAGE_PATH: process.env.STORAGE_PATH || "./storage"
 }
+
 export default env
 
 
@@ -743,12 +872,26 @@ export default logger
 FILE: authdoc_backend/services/api/src/config/redis.js
 ================================================
 import IORedis from "ioredis"
-import env from "./env.js"
 
 const redis = new IORedis({
-  host: env.REDIS_HOST,
-  port: env.REDIS_PORT,
-  maxRetriesPerRequest: null
+  host: process.env.REDIS_HOST,
+  port: Number(process.env.REDIS_PORT) || 6379,
+
+  username: process.env.REDIS_USERNAME,
+  password: process.env.REDIS_PASSWORD,
+
+  tls: process.env.REDIS_TLS === "true" ? {} : undefined,
+
+  maxRetriesPerRequest: null,
+  enableReadyCheck: false
+})
+
+redis.on("connect", () => {
+  console.log("Redis connected")
+})
+
+redis.on("error", (err) => {
+  console.error("Redis error:", err.message)
 })
 
 export default redis
@@ -830,14 +973,16 @@ FILE: authdoc_backend/services/api/src/controllers/dashboard.controller.js
 import { DashboardService } from "../services/dashboard.service.js"
 
 export class DashboardController {
-  static async getStats(req,res,next){
-    try{
-      const stats = await DashboardService.getStats()
+
+  static async getStats(req, res, next) {
+    try {
+      const data = await DashboardService.getDashboard()
+
       res.json({
-        success:true,
-        data:stats
+        success: true,
+        data
       })
-    }catch(err){
+    } catch (err) {
       next(err)
     }
   }
@@ -847,26 +992,22 @@ export class DashboardController {
 ================================================
 FILE: authdoc_backend/services/api/src/controllers/document.controller.js
 ================================================
-import { DocumentService } from "../services/document.service.js"
-export class DocumentController {
 
-  static async getDocument(req,res,next){
-    try{
+import { DocumentService } from "../services/document.service.js"
+
+export class DocumentController {
+  static async getDocument(req, res, next) {
+    try {
       const { documentId } = req.params
-      const document = await DocumentService.getDocument(
-        documentId
-      )
-      res.json({
-        success:true,
-        data:document
-      })
-    }catch(err){
+      const document = await DocumentService.getDocument(documentId)
+      res.json({ success: true, data: document })
+    } catch (err) {
       next(err)
     }
   }
 
-  static async getBatchDocuments(req,res,next){
-    try{
+  static async getBatchDocuments(req, res, next) {
+    try {
       const { batchId } = req.params
       const limit = parseInt(req.query.limit || 20)
       const offset = parseInt(req.query.offset || 0)
@@ -875,11 +1016,24 @@ export class DocumentController {
         limit,
         offset
       )
-      res.json({
-        success:true,
-        data:documents
-      })
-    }catch(err){
+      res.json({ success: true, data: documents })
+    } catch (err) {
+      next(err)
+    }
+  }
+  static async listDocuments(req, res, next) {
+    try {
+      const filters = {
+        type: req.query.type,
+        language: req.query.language,
+        status: req.query.status,
+        minConfidence: parseFloat(req.query.minConfidence || 0),
+        limit: parseInt(req.query.limit || 20),
+        offset: parseInt(req.query.offset || 0)
+      }
+      const data = await DocumentService.listDocuments(filters)
+      res.json({ success: true, data })
+    } catch (err) {
       next(err)
     }
   }
@@ -889,38 +1043,64 @@ export class DocumentController {
 ================================================
 FILE: authdoc_backend/services/api/src/controllers/export.controller.js
 ================================================
+// controllers/export.controller.js
 import { ExportService } from "../services/export.service.js"
 import { exportSchema } from "../validators/export.validator.js"
 
 export class ExportController {
 
-  static async createExport(req,res,next){
-    try{
+  static async createExport(req, res, next) {
+    try {
       const { error, value } = exportSchema.validate(req.body)
-      if(error){
-        return res.status(400).json({
-          success:false,
-          message:error.message
-        })
+      if (error) {
+        return res.status(400).json({ success: false, message: error.message })
       }
-      const exportRecord = await ExportService.createExport(value)
-      res.status(201).json({
-        success:true,
-        data:exportRecord
-      })
-    }catch(err){
+
+      const data = await ExportService.createExport(value)
+
+      res.status(201).json({ success: true, data })
+    } catch (err) {
       next(err)
     }
   }
-  static async getExport(req,res,next){
-    try{
+
+  static async getExport(req, res, next) {
+    try {
       const { exportId } = req.params
-      const exportData = await ExportService.getExport(exportId)
-      res.json({
-        success:true,
-        data:exportData
-      })
-    }catch(err){
+      const data = await ExportService.getExport(exportId)
+      res.json({ success: true, data })
+    } catch (err) {
+      next(err)
+    }
+  }
+
+  static async listExports(req, res, next) {
+    try {
+      const limit = parseInt(req.query.limit || 20)
+      const offset = parseInt(req.query.offset || 0)
+
+      const data = await ExportService.listExports(limit, offset)
+
+      res.json({ success: true, data })
+    } catch (err) {
+      next(err)
+    }
+  }
+
+  static async downloadExport(req, res, next) {
+    try {
+      const { exportId } = req.params
+      const record = await ExportService.getExport(exportId)
+
+      if (!record.file_path) {
+        return res.status(404).json({
+          success: false,
+          message: "File not ready"
+        })
+      }
+
+      res.download(record.file_path)
+    } catch (err) {
       next(err)
     }
   }
@@ -931,40 +1111,50 @@ export class ExportController {
 FILE: authdoc_backend/services/api/src/controllers/schema.controller.js
 ================================================
 import { SchemaService } from "../services/schema.service.js"
-import { schemaDefinition } from "../validators/schema.validator.js"
+import { createSchemaValidator } from "../validators/schema.validator.js"
 
 export class SchemaController {
 
-  static async createSchema(req,res,next){
-    try{
-      const { error, value } = schemaDefinition.validate(req.body)
-      if(error){
-        return res.status(400).json({
-          success:false,
-          message:error.message
-        })
-      }
-      const schema = await SchemaService.createSchema(value)
-      res.status(201).json({
-        success:true,
-        data:schema
-      })
-    }catch(err){
-      next(err)
-    }
-  }
+  static async createSchema(req, res, next) {
+  try {
+    const { error, value } = createSchemaValidator.validate(req.body)
 
-  static async listSchemas(req,res,next){
-    try{
-      const schemas = await SchemaService.listSchemas()
-      res.json({
-        success:true,
-        data:schemas
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
       })
-    }catch(err){
-      next(err)
     }
+
+    const result = await SchemaService.createSchema(value)
+
+    // ðŸ”¥ HANDLE FAILURE PROPERLY
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        message: result.message
+      })
+    }
+
+    
+    return res.status(201).json(result)
+
+  } catch (err) {
+    next(err)
   }
+}
+static async listSchemas(req, res, next) {
+  try {
+    const schemas = await SchemaService.listSchemas()
+
+    return res.json({
+      success: true,
+      data: schemas
+    })
+  } catch (err) {
+    next(err)
+  }
+}
 }
 
 
@@ -1001,6 +1191,36 @@ export class SettingsController {
     }
   }
 }
+
+
+================================================
+FILE: authdoc_backend/services/api/src/dashboard/queue.dashboard.js
+================================================
+import { ExpressAdapter } from "@bull-board/express"
+import { createBullBoard } from "@bull-board/api"
+import { BullMQAdapter } from "@bull-board/api/bullMQAdapter"
+
+import { Queue } from "bullmq"
+import redis from "../config/redis.js"
+import { QUEUES } from "../utils/constants.js"
+
+const serverAdapter = new ExpressAdapter()
+serverAdapter.setBasePath("/admin/queues")
+
+const queues = [
+  new Queue(QUEUES.ZIP, { connection: redis }),
+  new Queue(QUEUES.OCR, { connection: redis }),
+  new Queue(QUEUES.EXTRACTION, { connection: redis }),
+  new Queue(QUEUES.VALIDATION, { connection: redis }),
+  new Queue(QUEUES.EXPORT, { connection: redis })
+]
+
+createBullBoard({
+  queues: queues.map(q => new BullMQAdapter(q)),
+  serverAdapter
+})
+
+export { serverAdapter }
 
 
 ================================================
@@ -1113,13 +1333,13 @@ export async function addZipJob(data) {
       "process_zip",
       data,
       {
-        attempts: 5,
-        backoff: {
-          type: "exponential",
-          delay: 3000
-        },
-        removeOnComplete: true
-      }
+    jobId: data.batchId, // prevents duplicates
+    attempts: 5,
+    backoff: {
+      type: "exponential",
+      delay: 3000
+    },
+    removeOnComplete: true}
     )
 
     console.log("✅ [ZIP JOB] Job added successfully. Job ID:", job.id)
@@ -1213,15 +1433,19 @@ import logger from "../config/logger.js"
 
 export function requestLogger(req, res, next) {
   const start = Date.now()
+
   res.on("finish", () => {
     const duration = Date.now() - start
+
     logger.info({
+      requestId: req.id,
       method: req.method,
       path: req.originalUrl,
       status: res.statusCode,
       duration
     })
   })
+
   next()
 }
 
@@ -1231,29 +1455,42 @@ FILE: authdoc_backend/services/api/src/middleware/upload.middleware.js
 ================================================
 import multer from "multer"
 import path from "path"
+import fs from "fs"
 import env from "../config/env.js"
 
+// ðŸ”¥ ALWAYS use absolute path
+const uploadDir = path.resolve(env.STORAGE_PATH, "uploads")
+
+// ðŸ”¥ ENSURE DIRECTORY EXISTS
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true })
+}
+
 const storage = multer.diskStorage({
-  destination:(req,file,cb)=>{
-    cb(null,path.join(env.STORAGE_PATH,"uploads"))
+  destination: (req, file, cb) => {
+    cb(null, uploadDir)
   },
-  filename:(req,file,cb)=>{
-    const name = Date.now()+"_"+file.originalname
-    cb(null,name)
+  filename: (req, file, cb) => {
+    const name = Date.now() + "_" + file.originalname
+    cb(null, name)
   }
 })
 
-const fileFilter = (req,file,cb)=>{
-  if(!file.originalname.endsWith(".zip")){
+const fileFilter = (req, file, cb) => {
+  if (
+    file.mimetype !== "application/zip" &&
+    !file.originalname.endsWith(".zip")
+  ) {
     return cb(new Error("Only ZIP files allowed"))
   }
-  cb(null,true)
+  cb(null, true)
 }
+
 export const upload = multer({
   storage,
   fileFilter,
-  limits:{
-    fileSize: 1024*1024*500
+  limits: {
+    fileSize: 1024 * 1024 * 500
   }
 })
 
@@ -1264,37 +1501,47 @@ FILE: authdoc_backend/services/api/src/repositories/batch.repository.js
 import db from "../config/database.js"
 
 export class BatchRepository {
+
   static async createBatch(data) {
+
     const query = `
       INSERT INTO batches
       (
         batch_name,
         document_type,
+        schema_version,
         priority,
         total_documents,
         processed_documents,
         error_count,
-        status
+        status,
+        created_at,
+        updated_at
       )
-      VALUES ($1,$2,$3,0,0,0,'queued')
+      VALUES ($1,$2,$3,$4,0,0,0,'queued',NOW(),NOW())
       RETURNING *
     `
+
     const values = [
       data.batch_name,
       data.document_type,
-      data.priority
+      data.schema_version,
+      data.priority ?? 2
     ]
+
     const { rows } = await db.query(query, values)
+
     return rows[0]
   }
-  
+
+
   static async getBatchById(batchId) {
     const query = `
       SELECT *
       FROM batches
       WHERE batch_id = $1
     `
-    const { rows } = await db.query(query,[batchId])
+    const { rows } = await db.query(query, [batchId])
     return rows[0]
   }
 
@@ -1305,7 +1552,7 @@ export class BatchRepository {
       ORDER BY created_at DESC
       LIMIT $1 OFFSET $2
     `
-    const { rows } = await db.query(query,[limit,offset])
+    const { rows } = await db.query(query, [limit, offset])
     return rows
   }
 }
@@ -1318,30 +1565,54 @@ import db from "../config/database.js"
 
 export class DocumentRepository {
   static async getById(documentId) {
-    const query = `
-      SELECT *
-      FROM documents
-      WHERE document_id = $1
-    `
-    const { rows } = await db.query(query, [documentId])
+    const { rows } = await db.query(
+      `SELECT * FROM documents WHERE document_id=$1`,
+      [documentId]
+    )
     return rows[0]
   }
   static async getByBatch(batchId, limit, offset) {
+    const { rows } = await db.query(
+      `SELECT * FROM documents
+       WHERE batch_id=$1
+       ORDER BY created_at DESC
+       LIMIT $2 OFFSET $3`,
+      [batchId, limit, offset]
+    )
+    return rows
+  }
+  static async listDocuments(filters) {
+    const conditions = []
+    const values = []
+    let i = 1
+    if (filters.type) {
+      conditions.push(`document_type = $${i++}`)
+      values.push(filters.type)
+    }
+    if (filters.language) {
+      conditions.push(`language_detected = $${i++}`)
+      values.push(filters.language)
+    }
+    if (filters.status) {
+      conditions.push(`validation_status = $${i++}`)
+      values.push(filters.status)
+    }
+    if (filters.minConfidence) {
+      conditions.push(`confidence_score >= $${i++}`)
+      values.push(filters.minConfidence)
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""
     const query = `
       SELECT *
       FROM documents
-      WHERE batch_id = $1
+      ${where}
       ORDER BY created_at DESC
-      LIMIT $2 OFFSET $3
+      LIMIT $${i++} OFFSET $${i}
     `
-    const { rows } = await db.query(query, [
-      batchId,
-      limit,
-      offset
-    ])
+    values.push(filters.limit, filters.offset)
+    const { rows } = await db.query(query, values)
     return rows
   }
-
 }
 
 
@@ -1351,38 +1622,49 @@ FILE: authdoc_backend/services/api/src/repositories/export.repository.js
 import db from "../config/database.js"
 
 export class ExportRepository {
+
   static async createExport(data) {
-    const query = `
-      INSERT INTO exports
-      (batch_id, export_type, status)
-      VALUES ($1,$2,'generating')
-      RETURNING *
-    `
-    const values = [
-      data.batch_id,
-      data.export_type
-    ]
-    const { rows } = await db.query(query, values)
+    const { rows } = await db.query(
+      `INSERT INTO exports (batch_id, export_type, status)
+       VALUES ($1,$2,'generating')
+       RETURNING *`,
+      [data.batch_id, data.export_type]
+    )
     return rows[0]
   }
-  static async updateExportStatus(exportId, status, filePath) {
 
-  const query = `
-    UPDATE exports
-    SET status = $1,
-        file_path = $2
-    WHERE export_id = $3
-    RETURNING *
-  `
+  static async getExportById(exportId) {
+    const { rows } = await db.query(
+      `SELECT * FROM exports WHERE export_id=$1`,
+      [exportId]
+    )
+    return rows[0]
+  }
 
-  const { rows } = await db.query(query,[status,filePath,exportId])
+  static async listExports(limit = 20, offset = 0) {
+    const { rows } = await db.query(
+      `SELECT *
+       FROM exports
+       ORDER BY created_at DESC
+       LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    )
+    return rows
+  }
 
-  return rows[0]
-
+  static async updateExportStatus(exportId, status, filePath = null) {
+    const { rows } = await db.query(
+      `UPDATE exports
+       SET status=$1,
+           file_path=$2,
+           updated_at=NOW()
+       WHERE export_id=$3
+       RETURNING *`,
+      [status, filePath, exportId]
+    )
+    return rows[0]
+  }
 }
-
-}
-
 
 
 ================================================
@@ -1391,31 +1673,99 @@ FILE: authdoc_backend/services/api/src/repositories/schema.repository.js
 import db from "../config/database.js"
 
 export class SchemaRepository {
+
   static async createSchema(data) {
-    const query = `
-      INSERT INTO schema_definitions
-      (document_type, language, schema_version, status)
-      VALUES ($1,$2,$3,'active')
-      RETURNING *
-    `
-    const values = [
-      data.document_type,
-      data.language,
-      data.schema_version
-    ]
-    const { rows } = await db.query(query, values)
-    return rows[0]
+    const client = await db.connect()
+
+    try {
+      await client.query("BEGIN")
+
+      // prevent duplicates
+      const existing = await client.query(
+        `SELECT 1 FROM schema_definitions
+         WHERE document_type=$1 AND language=$2 AND version=$3`,
+        [data.document_type, data.language, data.schema_version]
+      )
+
+      if (existing.rows.length) {
+        throw new Error("Schema version already exists")
+      }
+
+      // deactivate old
+      await client.query(
+        `UPDATE schema_definitions
+         SET is_active=false
+         WHERE document_type=$1 AND language=$2`,
+        [data.document_type, data.language]
+      )
+
+      // insert schema
+      const schemaRes = await client.query(
+        `INSERT INTO schema_definitions
+         (document_type, language, version, is_active)
+         VALUES ($1,$2,$3,true)
+         RETURNING *`,
+        [data.document_type, data.language, data.schema_version]
+      )
+
+      const schemaId = schemaRes.rows[0].schema_id
+
+      // insert fields
+      for (const field of data.schema_json) {
+        await client.query(
+          `INSERT INTO schema_fields
+           (schema_id, field_name, data_type, required, confidence_threshold)
+           VALUES ($1,$2,$3,$4,$5)`,
+          [
+            schemaId,
+            field.field_name,
+            field.data_type,
+            field.required,
+            field.confidence_min
+          ]
+        )
+      }
+
+      await client.query("COMMIT")
+
+      return {
+        success: true,
+        data: schemaRes.rows[0]
+      }
+
+    } catch (err) {
+      await client.query("ROLLBACK")
+      return { success: false, message: err.message }
+    } finally {
+      client.release()
+    }
   }
+
   static async listSchemas() {
-    const query = `
-      SELECT *
-      FROM schema_definitions
-      ORDER BY created_at DESC
-    `
-    const { rows } = await db.query(query)
+    const { rows } = await db.query(
+      `SELECT * FROM schema_definitions
+       ORDER BY created_at DESC`
+    )
     return rows
   }
 
+  static async getSchemaFields(documentType, language, version) {
+    const schema = await db.query(
+      `SELECT schema_id FROM schema_definitions
+       WHERE document_type=$1 AND language=$2 AND version=$3`,
+      [documentType, language, version]
+    )
+
+    if (!schema.rows.length) return []
+
+    const { rows } = await db.query(
+      `SELECT * FROM schema_fields
+       WHERE schema_id=$1`,
+      [schema.rows[0].schema_id]
+    )
+
+    return rows
+  }
 }
 
 
@@ -1456,11 +1806,14 @@ import { BatchController } from "../controllers/batch.controller.js"
 import { upload } from "../middleware/upload.middleware.js"
 
 const router = express.Router()
+router.get("/", BatchController.listBatches)
+router.get("/:batchId", BatchController.getBatch)
 router.post(
   "/upload",
   upload.single("zip_file"),
   BatchController.createBatch
 )
+
 export default router
 
 
@@ -1478,25 +1831,31 @@ export default router
 ================================================
 FILE: authdoc_backend/services/api/src/routes/document.routes.js
 ================================================
+
 import express from "express"
 import { DocumentController } from "../controllers/document.controller.js"
 
 const router = express.Router()
+router.get("/", DocumentController.listDocuments)
+router.get("/batch/:batchId", DocumentController.getBatchDocuments)
+router.get("/:documentId", DocumentController.getDocument)
 
-router.get("/:documentId",DocumentController.getDocument)
-router.get("/batch/:batchId",DocumentController.getBatchDocuments)
 export default router
 
 
 ================================================
 FILE: authdoc_backend/services/api/src/routes/export.routes.js
 ================================================
+// routes/export.routes.js
+
 import express from "express"
 import { ExportController } from "../controllers/export.controller.js"
 
 const router = express.Router()
-router.post("/",ExportController.createExport)
-router.get("/:exportId",ExportController.getExport)
+router.post("/", ExportController.createExport)
+router.get("/", ExportController.listExports)
+router.get("/:exportId", ExportController.getExport)
+router.get("/:exportId/download", ExportController.downloadExport)
 export default router
 
 
@@ -1527,56 +1886,42 @@ export default router
 ================================================
 FILE: authdoc_backend/services/api/src/services/batch.service.js
 ================================================
+import fs from "fs"
+import path from "path"
 import { BatchRepository } from "../repositories/batch.repository.js"
 import { addZipJob } from "../jobs/zip.job.js"
+import { getBatchStoragePath } from "../utils/file.utils.js"
 
 export class BatchService {
-
-  // Create batch + trigger worker
   static async createBatch(data, zipPath) {
     try {
-      console.log("📦 [BATCH] Creating batch with data:", data)
-
-      // Step 1: Create batch in DB
       const batch = await BatchRepository.createBatch(data)
 
-      console.log("✅ [BATCH] Batch created:", batch)
+      const batchDir = getBatchStoragePath(batch.batch_id)
+      fs.mkdirSync(batchDir, { recursive: true })
+      const newZipPath = path.join(batchDir, "input.zip")
 
-      // Step 2: Add job to queue
-      try {
-        console.log("🚀 [BATCH] Sending job to ZIP queue...")
+      fs.renameSync(zipPath, newZipPath)
 
-        await addZipJob({
-          batchId: batch.batch_id,
-          zipPath
-        })
-
-        console.log("✅ [BATCH] Job sent to queue successfully")
-
-      } catch (jobError) {
-        console.error("❌ [BATCH] Failed to send job:", jobError)
-      }
+      await addZipJob({
+        batchId: batch.batch_id,
+        zipPath: newZipPath,
+      })
 
       return batch
-
     } catch (error) {
-      console.error("❌ [BATCH] Failed to create batch:", error)
+      console.error("[BATCH] ERROR:", error)
       throw error
     }
   }
 
-  static async getBatch(batchId) {
-    const batch = await BatchRepository.getBatchById(batchId)
-
-    if (!batch) {
-      throw new Error("Batch not found")
+  static async listBatches() {
+    try {
+      return await BatchRepository.listBatches()
+    } catch (error) {
+      console.error("[BATCH LIST] ERROR:", error)
+      throw error
     }
-
-    return batch
-  }
-
-  static async listBatches(limit, offset) {
-    return BatchRepository.listBatches(limit, offset)
   }
 }
 
@@ -1584,45 +1929,139 @@ export class BatchService {
 ================================================
 FILE: authdoc_backend/services/api/src/services/dashboard.service.js
 ================================================
+// services/dashboard.service.js
+
 import db from "../config/database.js"
 
 export class DashboardService {
-  static async getStats() {
-    const batchCountQuery = `
-      SELECT COUNT(*) AS total_batches
-      FROM batches
-    `
-    const documentCountQuery = `
-      SELECT COUNT(*) AS total_documents
-      FROM documents
-    `
-    const verifiedQuery = `
-      SELECT COUNT(*) AS verified_documents
-      FROM documents
-      WHERE validation_status = 'VERIFIED'
-    `
-    const flaggedQuery = `
-      SELECT COUNT(*) AS flagged_documents
-      FROM documents
-      WHERE validation_status = 'FLAGGED'
-    `
+
+  static async getDashboard() {
+
     const [
-      batchCount,
-      docCount,
-      verified,
-      flagged
+      totals,
+      quality,
+      queue,
+      trend,
+      distribution,
+      exportsStats
     ] = await Promise.all([
-      db.query(batchCountQuery),
-      db.query(documentCountQuery),
-      db.query(verifiedQuery),
-      db.query(flaggedQuery)
+      this.getTotals(),
+      this.getQuality(),
+      this.getQueueStats(),
+      this.getTrend(),
+      this.getDistribution(),
+      this.getExportStats()
     ])
+
     return {
-      total_batches: batchCount.rows[0].total_batches,
-      total_documents: docCount.rows[0].total_documents,
-      verified_documents: verified.rows[0].verified_documents,
-      flagged_documents: flagged.rows[0].flagged_documents
+      ...totals,
+      ...quality,
+      ...queue,
+      trend,
+      distribution,
+      ...exportsStats
     }
+  }
+
+  // ------------------------
+  // TOP METRICS
+  // ------------------------
+
+  static async getTotals() {
+    const res = await db.query(`
+      SELECT
+        COUNT(*) AS total_documents
+      FROM documents
+    `)
+
+    return {
+      total_documents: Number(res.rows[0].total_documents)
+    }
+  }
+
+  static async getQuality() {
+    const res = await db.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE validation_status='VERIFIED') AS verified,
+        COUNT(*) FILTER (WHERE validation_status='FLAGGED') AS flagged,
+        COUNT(*) FILTER (WHERE validation_status='LOW_CONFIDENCE') AS low_confidence,
+        COUNT(*) FILTER (WHERE validation_status='MISSING') AS missing,
+        COUNT(*) AS total
+      FROM documents
+    `)
+
+    const row = res.rows[0]
+    const total = Number(row.total) || 1
+
+    return {
+      verified_rate: Number(row.verified) / total,
+      flagged_rate: Number(row.flagged) / total,
+      manual_review: Number(row.flagged) + Number(row.low_confidence) + Number(row.missing)
+    }
+  }
+
+  static async getQueueStats() {
+    const res = await db.query(`
+      SELECT COUNT(*) AS in_queue
+      FROM documents
+      WHERE processing_status NOT IN ('COMPLETED', 'FAILED')
+    `)
+
+    return {
+      in_queue: Number(res.rows[0].in_queue)
+    }
+  }
+
+  static async getExportStats() {
+    const res = await db.query(`
+      SELECT COUNT(*) AS exports_generated
+      FROM exports
+      WHERE status='completed'
+    `)
+
+    return {
+      exports_generated: Number(res.rows[0].exports_generated)
+    }
+  }
+
+  // ------------------------
+  // TREND GRAPH (last 7 days)
+  // ------------------------
+
+  static async getTrend() {
+    const res = await db.query(`
+      SELECT
+        DATE(created_at) as date,
+        COUNT(*) as count
+      FROM documents
+      WHERE created_at >= NOW() - INTERVAL '7 days'
+      GROUP BY date
+      ORDER BY date ASC
+    `)
+
+    return res.rows.map(r => ({
+      date: r.date,
+      count: Number(r.count)
+    }))
+  }
+
+  // ------------------------
+  // STATUS DISTRIBUTION
+  // ------------------------
+
+  static async getDistribution() {
+    const res = await db.query(`
+      SELECT
+        validation_status,
+        COUNT(*) as count
+      FROM documents
+      GROUP BY validation_status
+    `)
+
+    return res.rows.map(r => ({
+      status: r.validation_status,
+      count: Number(r.count)
+    }))
   }
 }
 
@@ -1633,31 +2072,77 @@ FILE: authdoc_backend/services/api/src/services/document.service.js
 import { DocumentRepository } from "../repositories/document.repository.js"
 
 export class DocumentService {
+
   static async getDocument(documentId) {
     const doc = await DocumentRepository.getById(documentId)
-    if (!doc) {
-      throw new Error("Document not found")
-    }
-    return doc
+    if (!doc) throw new Error("Document not found")
+    return transform(doc)
   }
   static async getBatchDocuments(batchId, limit, offset) {
-    return DocumentRepository.getByBatch(
-      batchId,
-      limit,
-      offset
-    )
+    const docs = await DocumentRepository.getByBatch(batchId, limit, offset)
+    return docs.map(transform)
   }
+  static async listDocuments(filters) {
+    const docs = await DocumentRepository.listDocuments(filters)
+    return docs.map(transform)
+  }
+}
+
+function transform(doc) {
+
+  return {
+    document_id: doc.document_id,
+    type: doc.document_type,
+    language: doc.language_detected || "unknown",
+    pages: extractPages(doc.file_path),
+    confidence: Math.round((doc.confidence_score || 0) * 100),
+    status: deriveStatus(doc),
+    qc_assigned: null
+  }
+}
+
+function deriveStatus(doc) {
+  if (doc.processing_status === "OCR_FAILED") return "MISSING"
+  if (!doc.confidence_score) return "MISSING"
+  if (doc.confidence_score < 0.7) return "LOW_CONFIDENCE"
+  return doc.validation_status || "FLAGGED"
+}
+
+function extractPages(path) {
+  return 1
 }
 
 
 ================================================
 FILE: authdoc_backend/services/api/src/services/export.service.js
 ================================================
+// services/export.service.js
+import db from "../config/database.js"
 import { ExportRepository } from "../repositories/export.repository.js"
 import { addExportJob } from "../jobs/export.job.js"
 
 export class ExportService {
+
   static async createExport(data) {
+
+    const { rows } = await db.query(
+      `SELECT batch_id FROM batches WHERE batch_id=$1`,
+      [data.batch_id]
+    )
+
+    if (!rows.length) {
+      throw new Error("Invalid batch_id")
+    }
+    const existing = await db.query(
+      `SELECT * FROM exports
+       WHERE batch_id=$1 AND status='generating'`,
+      [data.batch_id]
+    )
+
+    if (existing.rows.length) {
+      return existing.rows[0]
+    }
+
     const record = await ExportRepository.createExport(data)
     await addExportJob({
       exportId: record.export_id,
@@ -1665,13 +2150,14 @@ export class ExportService {
     })
     return record
   }
-
   static async getExport(exportId) {
     const record = await ExportRepository.getExportById(exportId)
-    if (!record) {
-      throw new Error("Export not found")
-    }
+    if (!record) throw new Error("Export not found")
     return record
+  }
+
+  static async listExports(limit, offset) {
+    return ExportRepository.listExports(limit, offset)
   }
 }
 
@@ -1789,6 +2275,7 @@ export function getPagination(query) {
 ================================================
 FILE: authdoc_backend/services/api/src/validators/batch.validator.js
 ================================================
+
 import Joi from "joi"
 
 export const batchSchema = Joi.object({
@@ -1799,9 +2286,11 @@ export const batchSchema = Joi.object({
     .valid("birth", "marriage", "death")
     .required(),
 
-  priority: Joi.string()
-    .valid("low", "normal", "high")
-    .default("normal")
+  schema_version: Joi.string().required(),
+
+  priority: Joi.number()
+    .valid(1, 2, 3)
+    .default(2)
 
 })
 
@@ -1827,245 +2316,112 @@ FILE: authdoc_backend/services/api/src/validators/schema.validator.js
 ================================================
 import Joi from "joi"
 
-export const schemaDefinition = Joi.object({
-  document_type:Joi.string()
-    .valid("birth","marriage","death")
-    .required(),
-  language:Joi.string()
-    .length(2)
-    .required(),
-  schema_version:Joi.string()
-    .required()
+export const createSchemaValidator = Joi.object({
+  document_type: Joi.string().required(),
+  language: Joi.string().required(),
+  schema_version: Joi.string().required(),
 
+  schema_json: Joi.array().items(
+    Joi.object({
+      field_name: Joi.string().required(),
+      data_type: Joi.string().valid("string", "number", "date","Enum").required(),
+      required: Joi.boolean().default(false),
+      confidence_min: Joi.number().min(0).max(1).default(0.7)
+    })
+  ).min(1).required()
 })
 
 
 ================================================
 FILE: authdoc_backend/services/ocr-service/main.py
 ================================================
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from typing import List
-import tempfile
-import shutil
-import os
-import time
-from loguru import logger
+from fastapi import FastAPI, UploadFile, File, Form
+import tempfile, shutil, os, time, json
+from fastapi.responses import JSONResponse
 
 from ocr.chandra import run_ocr
-from processing.extractor import extract_fields
-from processing.record_builder import group_pages
+from processing.extractor import extract_with_llm
 
-app = FastAPI(title="AuthDoc OCR Service")
+app = FastAPI()
 
 
-# -------------------------------
-# UTIL â€” SAVE TEMP FILE
-# -------------------------------
-def save_temp(file: UploadFile) -> str:
-    filename = file.filename or "upload.png"
-    suffix = os.path.splitext(filename)[-1] or ".png"
-
-    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
-    try:
+def save_temp(file: UploadFile):
+    suffix = os.path.splitext(file.filename or "file.png")[-1]
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         shutil.copyfileobj(file.file, tmp)
         return tmp.name
-    finally:
-        tmp.close()
 
 
-# -------------------------------
-# UTIL â€” CLEAN FILE
-# -------------------------------
-def safe_remove(path: str):
-    try:
-        if os.path.exists(path):
-            os.remove(path)
-    except Exception as e:
-        logger.warning(f"Failed to delete temp file: {e}")
+def normalize_schema(schema_list):
+    result = {}
+
+    for field in schema_list:
+        name = field["field_name"]
+        parts = name.split(".")
+
+        current = result
+        for i, part in enumerate(parts):
+            if i == len(parts) - 1:
+                current[part] = {
+                    "type": field.get("data_type", "string"),
+                    "required": field.get("required", False)
+                }
+            else:
+                current[part] = current.get(part, {})
+                current = current[part]
+
+    return result
 
 
-# -------------------------------
-# CORE â€” PROCESS SINGLE FILE
-# -------------------------------
-def process_file(path: str):
-    result = run_ocr(path)
-
-    # -------------------------------
-    # CASE 1 â€” PIPELINE STRUCTURED OUTPUT
-    # -------------------------------
-    if isinstance(result, dict) and result:
-        return {
-            "mode": "pipeline",
-            "fields": result
-        }
-
-    # -------------------------------
-    # CASE 2 â€” BLOCKS (fallback OCR)
-    # -------------------------------
-    blocks = result if isinstance(result, list) else []
-
-    if not blocks:
-        return {
-            "mode": "failed",
-            "error": "OCR_FAILED",
-            "blocks": [],
-            "fields": {}
-        }
-
-    fields = extract_fields(blocks)
-
-    return {
-        "mode": "fallback",
-        "blocks": blocks,
-        "fields": fields
-    }
-
-
-# -------------------------------
-# ENDPOINT â€” SINGLE FILE
-# -------------------------------
 @app.post("/extract")
-async def extract(file: UploadFile = File(...)):
-    start = time.time()
-    path = save_temp(file)
+async def extract(
+    file: UploadFile = File(...),
+    schema_json: str = Form(...)
+):
+    path = None
 
     try:
-        result = process_file(path)
+        path = save_temp(file)
 
-        if result.get("mode") == "failed":
-            return {
-                "status": "failed",
-                "error": result.get("error"),
-                "time": time.time() - start
-            }
+        start = time.time()
+
+        raw_schema = json.loads(schema_json)
+        schema = normalize_schema(raw_schema)
+
+        print("[OCR] Schema fields:", len(raw_schema))
+
+        text = run_ocr(path)
+
+        if not text or len(text.strip()) < 20:
+            return JSONResponse(
+                status_code=422,
+                content={"status": "failed", "error": "OCR_EMPTY"}
+            )
+
+        print("[OCR] Text length:", len(text))
+
+        fields = extract_with_llm(text, schema)
 
         return {
             "status": "success",
-            "mode": result["mode"],
-            "data": result,
-            "time": time.time() - start
+            "fields": fields,
+            "time": round(time.time() - start, 2)
         }
 
     except Exception as e:
-        logger.exception("Extraction failed")
-        raise HTTPException(status_code=500, detail=str(e))
+        print("[OCR ERROR]:", str(e))
 
-    finally:
-        safe_remove(path)
-
-
-# -------------------------------
-# ENDPOINT â€” MULTI FILE (REAL USE CASE)
-# -------------------------------
-@app.post("/extract-batch")
-async def extract_batch(files: List[UploadFile] = File(...)):
-    start = time.time()
-
-    if not files:
-        raise HTTPException(status_code=400, detail="No files uploaded")
-
-    temp_paths = []
-    pages_blocks = []
-
-    try:
-        # -------------------------------
-        # STEP 1 â€” OCR ALL FILES
-        # -------------------------------
-        for file in files:
-            path = save_temp(file)
-            temp_paths.append(path)
-
-            result = run_ocr(path)
-
-            # pipeline case â†’ already structured
-            if isinstance(result, dict) and result:
-                pages_blocks.append({"pipeline": result})
-                continue
-
-            blocks = result if isinstance(result, list) else []
-
-            if blocks:
-                pages_blocks.append(blocks)
-
-        if not pages_blocks:
-            return {
+        return JSONResponse(
+            status_code=500,
+            content={
                 "status": "failed",
-                "error": "ALL_OCR_FAILED",
-                "records": []
+                "error": str(e)
             }
-
-        # -------------------------------
-        # STEP 2 â€” GROUP INTO RECORDS
-        # -------------------------------
-        records = group_pages(pages_blocks)
-
-        results = []
-
-        # -------------------------------
-        # STEP 3 â€” EXTRACT EACH RECORD
-        # -------------------------------
-        for record in records:
-            # pipeline shortcut
-            if isinstance(record, dict) and "pipeline" in record:
-                results.append(record["pipeline"])
-                continue
-
-            all_blocks = [
-                b for page in record["pages"] for b in page
-            ]
-
-            fields = extract_fields(all_blocks)
-
-            results.append(fields)
-
-        return {
-            "status": "success",
-            "records": results,
-            "total_records": len(results),
-            "time": time.time() - start
-        }
-
-    except Exception as e:
-        logger.exception("Batch extraction failed")
-        raise HTTPException(status_code=500, detail=str(e))
+        )
 
     finally:
-        for p in temp_paths:
-            safe_remove(p)
-
-
-================================================
-FILE: authdoc_backend/services/ocr-service/requirements.txt
-================================================
-fastapi==0.111.0
-uvicorn[standard]==0.30.1
-python-multipart==0.0.9
-
-paddleocr==2.7.3
-paddlepaddle==2.6.2
-paddleocr==2.7.3
-fastapi==0.111.0
-uvicorn[standard]==0.30.1
-# install manually:
-# pip install paddlepaddle==2.6.2
-
-opencv-python-headless==4.9.0.80
-pillow==10.3.0
-numpy==1.26.4
-
-scikit-learn==1.4.2
-requests==2.32.3
-rapidfuzz==3.9.3
-regex==2024.5.15
-unidecode==1.3.8
-transformers>=4.40.0
-torch>=2.2.0
-torchvision>=0.17.0
-pydantic==2.7.1
-loguru==0.7.2
-orjson==3.10.3
-httpx==0.27.0
-tenacity==8.2.3
+        if path and os.path.exists(path):
+            os.remove(path)
 
 
 ================================================
@@ -2090,120 +2446,207 @@ FILE: authdoc_backend/services/ocr-service/dictionaries/names.json
 ================================================
 FILE: authdoc_backend/services/ocr-service/ocr/chandra.py
 ================================================
-Error reading file with 'cp1252': 'charmap' codec can't decode byte 0x8f in position 3968: character maps to <undefined>
+import os
+import requests
+import time
+import mimetypes
 
+PIPELINE_ID = "pl_osN1C4D4_T50"
+BASE_URL = "https://www.datalab.to/api/v1"
 
-================================================
-FILE: authdoc_backend/services/ocr-service/ocr/trocr.py
-================================================
-from transformers import TrOCRProcessor, VisionEncoderDecoderModel
-from PIL import Image
-import torch
+def run_ocr(filepath: str):
+    api_key = os.getenv("DATALAB_API_KEY")
 
-# Global variables for lazy loading
-processor = None
-model = None
-device = "cpu"
+    if not api_key:
+        raise Exception("Missing DATALAB_API_KEY")
 
-def load_models():
-    global processor, model
-    if model is None:
-        print("⏳ Loading TrOCR models (first time run)...")
-        processor = TrOCRProcessor.from_pretrained("microsoft/trocr-base-handwritten")
-        model = VisionEncoderDecoderModel.from_pretrained("microsoft/trocr-base-handwritten").to(device)
-        print("✅ TrOCR models loaded.")
+    headers = {"X-API-Key": api_key}
+    mime_type = mimetypes.guess_type(filepath)[0] or "application/octet-stream"
 
-def run_trocr(image_path):
-    load_models()  # Ensures models are loaded
-    image = Image.open(image_path).convert("RGB")
-    pixel_values = processor(images=image, return_tensors="pt").pixel_values.to(device)
+    with open(filepath, "rb") as f:
+        files = {"file": (os.path.basename(filepath), f, mime_type)}
+
+        res = requests.post(
+            f"{BASE_URL}/pipelines/{PIPELINE_ID}/run?version=1",
+            headers=headers,
+            files=files
+        )
+
+    data = res.json()
+    execution_id = data.get("execution_id")
+
+    if not execution_id:
+        raise Exception(f"Pipeline failed: {data}")
+
+    # Poll
+    for _ in range(40):
+        status = requests.get(
+            f"{BASE_URL}/pipelines/executions/{execution_id}",
+            headers=headers
+        ).json()
+
+        if status["status"] == "completed":
+            break
+
+        if status["status"] == "failed":
+            raise Exception(f"Pipeline failed: {status}")
+
+        time.sleep(1.5)
+
+    # FINAL RESULT
+    result = requests.get(
+        f"{BASE_URL}/pipelines/executions/{execution_id}/steps/1/result",
+        headers=headers
+    ).json()
+    # NORMALIZE OUTPUT
+    if result.get("markdown"):
+        return result["markdown"]
+
+    if result.get("chunks"):
+        return " ".join([c.get("text", "") for c in result["chunks"]])
+
+    if result.get("json"):
+        return str(result["json"])
     
-    with torch.no_grad():
-        generated_ids = model.generate(pixel_values)
-        
-    text = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
-    print(text)
-    return text.lower()
+    return ""
 
 
 ================================================
 FILE: authdoc_backend/services/ocr-service/processing/extractor.py
 ================================================
-import json
 import os
-from typing import List, Dict
-from rapidfuzz import process
+import json
+import re
+import time
+from typing import Dict, Any, List, Optional
 
-def load_names():
-    base = os.path.dirname(os.path.dirname(__file__))
-    path = os.path.join(base, "dictionaries", "names.json")
-    if not os.path.exists(path):
-        return []
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+import google.generativeai as genai
+from dotenv import load_dotenv
+from google.generativeai.types import GenerationConfig
 
-NAMES_DICT = load_names()
-# Added "et" and "en" as separators rather than just noise
-SEPARATORS = {"et", "en"}
-NOISE_KEYWORDS = {"nÂ°", "mariage", "volume", "case", "feuillet", "acte", "registre"}
+load_dotenv()
 
-def is_valid_name_token(w: str) -> bool:
-    clean_w = w.lower().strip()
-    return len(clean_w) >= 3 and clean_w not in NOISE_KEYWORDS and clean_w not in SEPARATORS
+API_KEY = os.getenv("GEMINI_API_KEY")
+MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 
-def fuzzy_correct(word: str) -> str:
-    if not NAMES_DICT: return word
-    # Scored high at 85 to prevent "hallucinating" names from noise
-    match_data = process.extractOne(word, NAMES_DICT)
-    if match_data:
-        match, score, _ = match_data
-        return match if score > 85 else word
-    return word
+if not API_KEY:
+    raise ValueError("GEMINI_API_KEY is required")
 
-def extract_fields(blocks: List[Dict]):
-    if not blocks:
-        return {"Groom": "Manual Check", "Bride": "Manual Check"}
+genai.configure(api_key=API_KEY)
 
-    # 1. Identify Left Column with stricter bounds
-    # Find min_x but ignore outliers (noise at the very edge)
-    sorted_xs = sorted([b["x"] for b in blocks])
-    min_x = sorted_xs[0] if sorted_xs else 0
-    
-    # 2. Extract Margin Elements and Body Separately
-    # Margin is usually in the first 30% of document width
-    margin_elements = [b for b in blocks if b["x"] < min_x + 250]
-    margin_elements.sort(key=lambda b: b["y"])
+model = genai.GenerativeModel(MODEL)
+
+# -------------------------
+# UTILITIES
+# -------------------------
+
+def clean_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def split_text(text: str, max_chars: int = 12000) -> List[str]:
+    return [text[i:i + max_chars] for i in range(0, len(text), max_chars)]
+
+
+def safe_parse(text: str) -> Dict[str, Any]:
+    try:
+        return json.loads(text)
+    except Exception:
+        # fallback: extract JSON block
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start != -1 and end != -1:
+            try:
+                return json.loads(text[start:end])
+            except Exception:
+                pass
+    return {}
+
+
+def build_prompt(text: str, schema: Dict[str, Any]) -> str:
+    return f"""
+    ### ROLE
+    You are a high-precision Data Extraction Engine. Your objective is to transform unstructured text into a machine-readable JSON format that adheres strictly to a predefined schema.
+
+    ### EXTRACTION PIPELINE
+    1. **Schema Alignment**: Map raw text entities to the keys defined in the schema.
+    2. **Type Casting**: 
+    - Convert written-out numerals (e.g., "forty-two") into integers/floats.
+    - Standardize calendar dates into ISO-8601 or the most logical numeric format.
+    3. **Entity Resolution**: Maintain the literal integrity of proper names and locations unless normalization is required for type-consistency.
+    4. **Handling Ambiguity**: If a field is not present in the source text, or if the data is logically inconclusive, assign the value `null`.
+    5. Rules:
+        - Preserve original language unless normalization is required for type consistency.
+    ### CONSTRAINTS
+    - **No Hallucination**: Do not infer data that does not exist in the text.
+    - **Structural Integrity**: Output MUST be a single, valid JSON object. Do not include Markdown code blocks, preamble, or post-extraction commentary.
+    - **Zero Schema Drift**: Do not add, remove, or modify the keys provided in the schema.
+
+    ### DOCUMENT TEXT
+    {text}
+
+    ### SCHEMA (STRICT)
+    {json.dumps(schema, indent=2)}
+
+    ### OUTPUT FORMAT (STRICT JSON SHAPE)
+    Return JSON EXACTLY like this structure:
+    """
+
+
+def call_gemini(prompt: str, retries: int = 3, delay: float = 1.5) -> Optional[str]:
+    for attempt in range(retries):
+        try:
+            response = model.generate_content(
+                prompt,
+                 generation_config=GenerationConfig(
+                    temperature=0,
+                    top_p=1,
+                    max_output_tokens=4096,
+                )
+            )
+
+            if response and response.text:
+                return response.text.strip()
+
+        except Exception as e:
+            print(f"[LLM ERROR] Attempt {attempt+1}: {e}")
+            time.sleep(delay)
+
+    return None
+
+
+def extract_with_llm(text: str, schema: Dict[str, Any]) -> Dict[str, Any]:
+
+    text = clean_text(text)
+    chunks = split_text(text)
 
     results = []
-    current_person_words = []
 
-    # 3. Semantic Splitting (The "Separator" Rule)
-    for b in margin_elements:
-        text_val = b["text"].lower().strip()
-        
-        # If we hit "et" or "en", the current person is complete
-        if text_val in SEPARATORS:
-            if current_person_words:
-                results.append(" ".join(current_person_words))
-                current_person_words = []
+    for chunk in chunks:
+        prompt = build_prompt(chunk, schema)
+
+        raw_output = call_gemini(prompt)
+
+        if not raw_output:
+            results.append({})
             continue
 
-        clean_w = text_val.replace(",", "").replace(".", "")
-        if is_valid_name_token(clean_w):
-            current_person_words.append(fuzzy_correct(clean_w))
+        print("\n[RAW  OUTPUT]\n", raw_output)
 
-    # Add the last person found
-    if current_person_words:
-        results.append(" ".join(current_person_words))
+        parsed = safe_parse(raw_output)
+        results.append(parsed)
 
-    # 4. Final Verification
-    # Filter out entries that are too short to be full names
-    final_names = [name.title() for name in results if len(name.split()) >= 2]
+    final = {}
 
-    return {
-        "Groom": final_names[0] if len(final_names) > 0 else "Manual Check",
-        "Bride": final_names[1] if len(final_names) > 1 else "Manual Check"
-    }
+    for key in schema.keys():
+        value = None
+        for r in results:
+            if r.get(key) not in [None, "", {}]:
+                value = r[key]
+                break
+        final[key] = value
+
+    return final
 
 
 ================================================
@@ -2261,17 +2704,30 @@ def split_page_into_records(page_blocks):
 ================================================
 FILE: authdoc_backend/services/workers/src/worker.js
 ================================================
-import "dotenv/config"
+import "../../api/src/config/env.js"
 import "./workers/zip.worker.js"
 import "./workers/ocr.worker.js"
-import "./workers/extraction.worker.js"
 import "./workers/validation.worker.js"
 import "./workers/export.worker.js"
 
 console.log("AuthDoc Workers started")
+console.log("Configuration loaded:")
+console.log("   OCR Service:", process.env.OCR_SERVICE_URL)
+console.log("   Database:", process.env.DATABASE_URL?.substring(0, 50) + "...")
+console.log("   Redis:", `${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`)
+console.log("")
+console.log("All workers are listening for jobs...")
 
+// Global error handlers
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason)
+})
 
-console.log("DB URL:", process.env.DATABASE_URL)
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught Exception:", error)
+  process.exit(1)
+})
+
 
 
 ================================================
@@ -2295,9 +2751,45 @@ FILE: authdoc_backend/services/workers/src/config/redis.js
 import IORedis from "ioredis"
 
 const redis = new IORedis({
-  host: "127.0.0.1",   // âœ… FIX
-  port: 6379,
-  maxRetriesPerRequest: null
+  host: process.env.REDIS_HOST,
+  port: Number(process.env.REDIS_PORT),
+
+  username: process.env.REDIS_USERNAME || "default",
+  password: process.env.REDIS_PASSWORD,
+
+  tls: process.env.REDIS_TLS === "true" ? {} : undefined,
+
+  // ðŸ”¥ CRITICAL FIXES
+  connectTimeout: 10000,
+  maxRetriesPerRequest: null,
+  enableReadyCheck: false,
+
+  retryStrategy(times) {
+    const delay = Math.min(times * 200, 5000)
+    console.log(`[Redis] retry attempt ${times}, delay=${delay}`)
+    return delay
+  },
+
+  reconnectOnError(err) {
+    console.error("[Redis] reconnectOnError:", err.message)
+    return true
+  }
+})
+
+redis.on("connect", () => {
+  console.log(" Redis connected")
+})
+
+redis.on("ready", () => {
+  console.log("Redis ready")
+})
+
+redis.on("error", err => {
+  console.error("Redis error:", err.message)
+})
+
+redis.on("close", () => {
+  console.warn("Redis connection closed")
 })
 
 export default redis
@@ -2307,25 +2799,77 @@ export default redis
 FILE: authdoc_backend/services/workers/src/services/export.service.js
 ================================================
 import db from "../../../../shared/db/postgres.js"
-import { generateExcel } from "../../../aip/src/utils/excel.utils.js"
+import ExcelJS from "exceljs"
+import fs from "fs"
+import path from "path"
+
+function flatten(obj, prefix = "", res = {}) {
+  for (const key in obj) {
+    const newKey = prefix ? `${prefix}.${key}` : key
+    if (typeof obj[key] === "object" && obj[key] !== null) {
+      flatten(obj[key], newKey, res)
+    } else {
+      res[newKey] = obj[key]
+    }
+  }
+  return res
+}
 
 export async function generateBatchExport(exportId, batchId) {
-  const docs = await db.query(
-    `SELECT * FROM documents
-     WHERE batch_id=$1`,
-    [batchId]
-  )
+  try {
+    const { rows } = await db.query(
+      `SELECT document_id, validated_data, confidence_score
+       FROM documents
+       WHERE batch_id=$1
+       AND validation_status='VERIFIED'
+       AND confidence_score >= 0.7`,
+      [batchId]
+    )
 
-  const filePath = `storage/exports/${exportId}.xlsx`
+    if (!rows.length) {
+      throw new Error("No valid documents")
+    }
 
-  await generateExcel(filePath, docs.rows)
+    const flattened = rows.map(doc => ({
+      document_id: doc.document_id,
+      confidence_score: doc.confidence_score,
+      ...flatten(doc.validated_data)
+    }))
 
-  await db.query(
-    `UPDATE exports
-     SET file_path=$1,status='completed'
-     WHERE export_id=$2`,
-    [filePath, exportId]
-  )
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet("Export")
+
+    sheet.columns = Object.keys(flattened[0]).map(k => ({
+      header: k,
+      key: k,
+      width: 25
+    }))
+
+    sheet.addRows(flattened)
+
+    const filePath = path.join("storage/exports", `${exportId}.xlsx`)
+
+    await workbook.xlsx.writeFile(filePath)
+
+    await db.query(
+      `UPDATE exports
+       SET file_path=$1,
+           status='completed',
+           updated_at=NOW()
+       WHERE export_id=$2`,
+      [filePath, exportId]
+    )
+
+  } catch (err) {
+    await db.query(
+      `UPDATE exports
+       SET status='failed',
+           updated_at=NOW()
+       WHERE export_id=$1`,
+      [exportId]
+    )
+    throw err
+  }
 }
 
 
@@ -2360,19 +2904,187 @@ FILE: authdoc_backend/services/workers/src/services/ocr.service.js
 ================================================
 import { runOCR } from "../utils/ocr.client.js"
 import db from "../../../../shared/db/postgres.js"
-import { addExtractionJob } from "../../../../shared/queues/extraction.queue.js"
+import { addValidationJob } from "../../../../shared/queues/validation.queue.js"
 
+const MAX_OCR_RETRIES = 3
 export async function processOCR(documentId, imagePath) {
-  const result = await runOCR(imagePath)
-  await db.query(
-    `INSERT INTO ocr_results(document_id,raw_text,avg_confidence)
-     VALUES($1,$2,$3)`,
-    [documentId, result.raw_text, result.avg_confidence]
+  console.log("[OCR] Processing:", documentId)
+  const existing = await db.query(
+    `SELECT processing_status FROM documents WHERE document_id=$1`,
+    [documentId]
   )
-  await addExtractionJob({
-    documentId,
-    rawText: result.raw_text
-  })
+  if (!existing.rows.length) {
+    throw new Error("Document not found")
+  }
+  const status = existing.rows[0].processing_status
+  if (status === "OCR_DONE") {
+    console.log("[OCR] Skipping already processed:", documentId)
+    return
+  }
+
+  const batchRes = await db.query(
+    `SELECT b.batch_id, b.document_type, b.schema_version
+     FROM documents d
+     JOIN batches b ON d.batch_id = b.batch_id
+     WHERE d.document_id=$1`,
+    [documentId]
+  )
+  if (!batchRes.rows.length) {
+    throw new Error("Batch not found")
+  }
+  const { batch_id, document_type, schema_version } = batchRes.rows[0]
+  
+  console.log("[OCR] Looking up schema:", { document_type, schema_version })
+  
+  let schemaRes = await db.query(
+    `SELECT sf.field_name, sf.data_type, sf.required, sf.confidence_min
+     FROM schema_fields sf
+     JOIN schema_definitions sd
+     ON sf.schema_id = sd.schema_id
+     WHERE sd.document_type=$1
+     AND sd.language=$2
+     AND sd.version=$3
+     ORDER BY sf.field_name ASC`,
+    [document_type, "default", schema_version]
+  )
+  
+  // Fallback: try without language filter if not found
+  if (!schemaRes.rows.length) {
+    console.warn("[OCR] Schema not found with language 'default', trying without language filter")
+    schemaRes = await db.query(
+      `SELECT sf.field_name, sf.data_type, sf.required, sf.confidence_min
+       FROM schema_fields sf
+       JOIN schema_definitions sd
+       ON sf.schema_id = sd.schema_id
+       WHERE sd.document_type=$1
+       AND sd.version=$2
+       ORDER BY sf.field_name ASC`,
+      [document_type, schema_version]
+    )
+  }
+  
+  // Final fallback: try any schema for this document type
+  if (!schemaRes.rows.length) {
+    console.warn("[OCR] Schema not found with version, trying latest for document type")
+    schemaRes = await db.query(
+      `SELECT sf.field_name, sf.data_type, sf.required, sf.confidence_min
+       FROM schema_fields sf
+       JOIN schema_definitions sd
+       ON sf.schema_id = sd.schema_id
+       WHERE sd.document_type=$1
+       ORDER BY sd.version DESC, sf.field_name ASC
+       LIMIT 100`,
+      [document_type]
+    )
+  }
+  
+  if (!schemaRes.rows.length) {
+    throw new Error(`Schema not found for document_type=${document_type}, version=${schema_version}`)
+  }
+  
+  // Build complete schema with all available fields
+  const schema = schemaRes.rows.map(f => ({
+    field_name: f.field_name,
+    data_type: f.data_type,
+    required: f.required,
+    confidence_threshold: f.confidence_min
+  }))
+  
+  console.log("[OCR] Total schema fields from DB:", schema.length)
+  console.log("[OCR] Sending fields to OCR:", JSON.stringify(schema, null, 2))
+  
+  let lastError = null
+
+  for (let attempt = 1; attempt <= MAX_OCR_RETRIES; attempt++) {
+    try {
+      console.log(`[OCR] Attempt ${attempt} for ${documentId}`)
+      const result = await runOCR(imagePath, schema)
+      if (!result?.fields || typeof result.fields !== "object") {
+        throw new Error("Invalid OCR structure")
+      }
+      const normalized = normalizeFields(result.fields)
+      await db.query(
+        `UPDATE documents
+         SET extracted_data = $1,
+             processing_status = 'OCR_DONE',
+             updated_at = NOW()
+         WHERE document_id = $2`,
+        [normalized, documentId]
+      )
+      console.log("[OCR] SUCCESS:", documentId)
+      await db.query(
+        `UPDATE batches
+         SET processed_documents = processed_documents + 1,
+             updated_at = NOW()
+         WHERE batch_id = $1`,
+        [batch_id]
+      )
+      await addValidationJob({ documentId })
+      return
+    } catch (err) {
+      lastError = err
+      console.warn(`[OCR] Attempt ${attempt} failed:`, err.message)
+      
+      // Don't retry on non-recoverable errors
+      const nonRecoverable = [
+        "Schema not found",
+        "Document not found",
+        "Batch not found",
+        "Invalid OCR structure"
+      ]
+      const isNonRecoverable = nonRecoverable.some(msg => err.message?.includes(msg))
+      
+      if (isNonRecoverable) {
+        console.error("[OCR] Non-recoverable error, skipping retries:", err.message)
+        break
+      }
+
+      if (attempt === MAX_OCR_RETRIES) break
+    }
+  }
+
+  console.error("[OCR FAILED]:", documentId)
+
+  await db.query(
+    `UPDATE documents
+     SET processing_status = 'OCR_FAILED',
+         updated_at = NOW()
+     WHERE document_id = $1`,
+    [documentId]
+  )
+
+  await db.query(
+    `UPDATE batches
+     SET error_count = error_count + 1,
+         updated_at = NOW()
+     WHERE batch_id = $1`,
+    [batch_id]
+  )
+  throw lastError
+}
+
+function normalizeFields(fields) {
+  const result = {}
+  for (const key in fields) {
+    if (!key || typeof key !== "string") continue
+    if (key.includes(".")) {
+      const parts = key.split(".")
+      let current = result
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i]
+        if (!part) continue
+        if (i === parts.length - 1) {
+          current[part] = fields[key]
+        } else {
+          current[part] = current[part] || {}
+          current = current[part]
+        }
+      }
+    } else {
+      result[key] = fields[key]
+    }
+  }
+  return result
 }
 
 
@@ -2380,46 +3092,206 @@ export async function processOCR(documentId, imagePath) {
 FILE: authdoc_backend/services/workers/src/services/validation.service.js
 ================================================
 import db from "../../../../shared/db/postgres.js"
+import { addOCRJob } from "../../../../shared/queues/ocr.queue.js"
 
-export async function validateDocument(documentId) {
-  const fields = await db.query(
-    `SELECT * FROM extracted_fields
-     WHERE document_id=$1`,
-    [documentId]
-  )
-  let status = "VERIFIED"
-  for (const f of fields.rows) {
-    if (!f.field_value) {
-      status = "MISSING"
-      break
-    }
-    if (f.confidence_score < 0.7) {
-      status = "LOW_CONFIDENCE"
+export class ValidationService {
+  static async process(documentId) {
+    const client = await db.connect()
+    try {
+      await client.query("BEGIN")
+      const doc = await this.getDocument(client, documentId)
+      const batch = await this.getBatch(client, doc.batch_id)
+      const schema = await this.getSchema(client, batch)
+      const result = this.validateFields(
+        doc.extracted_data,
+        schema
+      )
+      if (result.avgConfidence < 0.7 && doc.retry_count < 2) {
+        await this.incrementRetry(client, documentId)
+        await client.query("COMMIT")
+        await addOCRJob({ documentId })
+        return
+      }
+      await this.saveValidation(
+        client,
+        documentId,
+        result
+      )
+      await client.query("COMMIT")
+    } catch (err) {
+      await client.query("ROLLBACK")
+      console.error("[VALIDATION ERROR]:", err.message)
+      await db.query(
+        `UPDATE documents
+         SET validation_status='FAILED'
+         WHERE document_id=$1`,
+        [documentId]
+      )
+      throw err
+    } finally {
+      client.release()
     }
   }
-  await db.query(
-    `UPDATE documents
-     SET validation_status=$1
-     WHERE document_id=$2`,
-    [status, documentId]
-  )
+  static async getDocument(client, documentId) {
+    const res = await client.query(
+      `SELECT * FROM documents WHERE document_id=$1`,
+      [documentId]
+    )
+    if (!res.rows.length) throw new Error("Document not found")
+
+    return res.rows[0]
+  }
+  static async getBatch(client, batchId) {
+    const res = await client.query(
+      `SELECT * FROM batches WHERE batch_id=$1`,
+      [batchId]
+    )
+    if (!res.rows.length) throw new Error("Batch not found")
+    return res.rows[0]
+  }
+  static async getSchema(client, batch) {
+    const res = await client.query(
+      `SELECT sf.field_name, sf.data_type, sf.required, sf.confidence_threshold
+       FROM schema_fields sf
+       JOIN schema_definitions sd
+       ON sf.schema_id = sd.schema_id
+       WHERE sd.document_type=$1
+       AND sd.version=$2
+       AND sd.language=$3`,
+      [
+        batch.document_type,
+        batch.schema_version,
+        batch.language
+      ]
+    )
+    if (!res.rows.length) throw new Error("Schema not found")
+    return res.rows
+  }
+  static async incrementRetry(client, documentId) {
+    await client.query(
+      `UPDATE documents
+       SET retry_count = retry_count + 1
+       WHERE document_id=$1`,
+      [documentId]
+    )
+  }
+  static async saveValidation(client, documentId, result) {
+    await client.query(
+      `UPDATE documents
+       SET validated_data = $1,
+           flagged_fields = $2,
+           validation_status = $3,
+           confidence_score = $4,
+           updated_at = NOW()
+       WHERE document_id=$5`,
+      [
+        result.nested,
+        result.flags,
+        result.status,
+        result.avgConfidence,
+        documentId
+      ]
+    )
+  }
+  static validateFields(data, schema) {
+    const validated = {}
+    const flags = []
+    let total = 0
+    let weightSum = 0
+    for (const field of schema) {
+      const value = this.getValue(data, field.field_name)
+      let confidence = 1
+      let valid = true
+      const weight = field.required ? 2 : 1
+      if (field.required && this.isEmpty(value)) {
+        valid = false
+        confidence = 0
+      }
+      if (!this.isEmpty(value)) {
+        if (field.data_type === "number" && isNaN(Number(value))) {
+          valid = false
+          confidence = 0.3
+        }
+        if (field.data_type === "string" && typeof value !== "string") {
+          valid = false
+          confidence = 0.5
+        }
+      }
+      if (confidence < field.confidence_threshold) {
+        valid = false
+      }
+      validated[field.field_name] = {
+        value,
+        confidence,
+        valid
+      }
+      if (!valid) flags.push(field.field_name)
+      total += confidence * weight
+      weightSum += weight
+    }
+    const avg = weightSum ? total / weightSum : 0
+    return {
+      nested: this.nest(validated),
+      flags,
+      avgConfidence: avg,
+      status: flags.length ? "FLAGGED" : "VERIFIED"
+    }
+  }
+  static getValue(obj, path) {
+    return path.split(".").reduce((o, k) => o?.[k], obj)
+  }
+  static isEmpty(v) {
+    return v === null || v === undefined || v === ""
+  }
+  static nest(flat) {
+    const res = {}
+    for (const key in flat) {
+      const parts = key.split(".")
+      let cur = res
+      for (let i = 0; i < parts.length; i++) {
+        const p = parts[i]
+        if (i === parts.length - 1) {
+          cur[p] = flat[key]
+        } else {
+          cur[p] = cur[p] || {}
+          cur = cur[p]
+        }
+      }
+    }
+    return res
+  }
 }
 
 
 ================================================
 FILE: authdoc_backend/services/workers/src/services/zip.service.js
 ================================================
+// zip.service.js
+import db from "../../../../shared/db/postgres.js"
 import { unzipImages } from "../utils/unzip.utils.js"
 import { addOCRJob } from "../../../../shared/queues/ocr.queue.js"
-import db from "../../../../shared/db/postgres.js"
-
 export async function processZip(batchId, zipPath) {
+  await db.query(
+    `UPDATE batches
+     SET status='processing',
+         updated_at=NOW()
+     WHERE batch_id=$1`,
+    [batchId]
+  )
+
   const outputDir = `storage/uploads/batches/${batchId}`
   const images = await unzipImages(zipPath, outputDir)
+  await db.query(
+    `UPDATE batches
+     SET total_documents=$1
+     WHERE batch_id=$2`,
+    [images.length, batchId]
+  )
   for (const image of images) {
     const doc = await db.query(
-      `INSERT INTO documents(batch_id,file_path)
-       VALUES($1,$2)
+      `INSERT INTO documents
+       (batch_id,file_path,processing_status)
+       VALUES($1,$2,'PENDING')
        RETURNING document_id`,
       [batchId, image]
     )
@@ -2435,15 +3307,67 @@ export async function processZip(batchId, zipPath) {
 FILE: authdoc_backend/services/workers/src/utils/ocr.client.js
 ================================================
 import axios from "axios"
+import FormData from "form-data"
+import fs from "fs"
 
-export async function runOCR(imagePath) {
-  const response = await axios.post(
-    process.env.OCR_SERVICE_URL + "/extract",
-    {
-      image_path: imagePath
+export async function runOCR(imagePath, schema) {
+  // Validate file exists
+  if (!fs.existsSync(imagePath)) {
+    throw new Error(`Image file not found: ${imagePath}`)
+  }
+
+  const form = new FormData()
+
+  form.append("file", fs.createReadStream(imagePath))
+  form.append("schema_json", JSON.stringify(schema))
+
+  try {
+    const ocrUrl = process.env.OCR_SERVICE_URL?.endsWith("/extract")
+      ? process.env.OCR_SERVICE_URL
+      : `${process.env.OCR_SERVICE_URL}/extract`
+
+    console.log("[OCR Client] Sending request to OCR service")
+    console.log("[OCR Client] URL:", ocrUrl)
+    console.log("[OCR Client] Image:", imagePath)
+    console.log("[OCR Client] Schema fields count:", schema.length)
+    console.log("[OCR Client] Schema details:")
+    schema.forEach(f => {
+      console.log(`  - ${f.field_name} (${f.data_type}, required: ${f.required})`)
+    })
+
+    const response = await axios.post(ocrUrl, form, {
+      headers: form.getHeaders(),
+      maxBodyLength: Infinity,
+      timeout: 60000  // Increased timeout for large images
+    })
+
+    console.log("[OCR Client]  Response received:", response.status)
+    if (response.data?.fields) {
+      console.log("[OCR Client] Fields extracted:", Object.keys(response.data.fields).length)
     }
-  )
-  return response.data
+    if (!response.data?.fields) {
+      console.warn("[OCR Client]  Response missing 'fields' field")
+    }
+    return response.data
+  } catch (error) {
+    console.error("[OCR Client]  Error:", {
+      message: error.message,
+      code: error.code,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data
+    })
+    
+    // Provide helpful error messages
+    if (error.code === "ECONNREFUSED") {
+      throw new Error(`Cannot connect to OCR service at ${process.env.OCR_SERVICE_URL}. Is it running?`)
+    }
+    if (error.code === "ETIMEDOUT" || error.code === "ECONNABORTED") {
+      throw new Error(`OCR service timeout. The service may be overloaded or unresponsive.`)
+    }
+    
+    throw error
+  }
 }
 
 
@@ -2513,6 +3437,7 @@ export async function unzipImages(zipPath, outputDir) {
 ================================================
 FILE: authdoc_backend/services/workers/src/workers/export.worker.js
 ================================================
+// workers/export.worker.js
 import { Worker } from "bullmq"
 import redis from "../config/redis.js"
 import { generateBatchExport } from "../services/export.service.js"
@@ -2520,8 +3445,10 @@ import { generateBatchExport } from "../services/export.service.js"
 new Worker(
   "export_queue",
   async job => {
+    console.log("[EXPORT] job:", job.id)
     const { exportId, batchId } = job.data
     await generateBatchExport(exportId, batchId)
+    console.log("[EXPORT] completed:", job.id)
   },
   { connection: redis }
 )
@@ -2567,6 +3494,8 @@ import { Worker } from "bullmq"
 import redis from "../config/redis.js"
 import { processOCR } from "../services/ocr.service.js"
 
+console.log("[OCR Worker] Initializing...")
+
 const worker = new Worker(
   "ocr_queue",
   async job => {
@@ -2580,6 +3509,10 @@ const worker = new Worker(
   { connection: redis }
 )
 
+worker.on("ready", () => {
+  console.log("[OCR Worker] Ready and listening for jobs")
+})
+
 worker.on("completed", job => {
   console.log("[OCR] worker completed:", job.id)
 })
@@ -2589,8 +3522,10 @@ worker.on("failed", (job, err) => {
 })
 
 worker.on("error", err => {
-  console.error("[OCR] worker error:", err.message)
+  console.error(" [OCR] worker error:", err.message)
 })
+
+export default worker
 
 
 ================================================
@@ -2598,32 +3533,21 @@ FILE: authdoc_backend/services/workers/src/workers/validation.worker.js
 ================================================
 import { Worker } from "bullmq"
 import redis from "../config/redis.js"
-import { validateDocument } from "../services/validation.service.js"
+import { ValidationService } from "../services/validation.service.js"
 
-const worker = new Worker(
+new Worker(
   "validation_queue",
   async job => {
-    console.log("[VALIDATION] picked job:", job.id, job.data)
-
     const { documentId } = job.data
-    await validateDocument(documentId)
 
-    console.log("[VALIDATION] completed job:", job.id)
+    console.log("[VALIDATION] job:", documentId)
+
+    await ValidationService.process(documentId)
+
+    console.log("[VALIDATION] done:", documentId)
   },
   { connection: redis }
 )
-
-worker.on("completed", job => {
-  console.log("[VALIDATION] worker completed:", job.id)
-})
-
-worker.on("failed", (job, err) => {
-  console.error("[VALIDATION] worker failed:", job?.id, err.message)
-})
-
-worker.on("error", err => {
-  console.error("[VALIDATION] worker error:", err.message)
-})
 
 
 ================================================
@@ -2686,6 +3610,21 @@ export default DOCUMENT_STATUS
 
 
 ================================================
+FILE: authdoc_backend/shared/constants/priority.js
+================================================
+export const PRIORITY = {
+  LOW: 1,
+  NORMAL: 2,
+  HIGH: 3
+}
+export const PRIORITY_LABEL = {
+  1: "low",
+  2: "normal",
+  3: "high"
+}
+
+
+================================================
 FILE: authdoc_backend/shared/constants/queueNames.js
 ================================================
 export const QUEUE_NAMES = {
@@ -2702,22 +3641,26 @@ export default QUEUE_NAMES
 FILE: authdoc_backend/shared/db/postgres.js
 ================================================
 import pkg from "pg"
-
 const { Pool } = pkg
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 50,
+  ssl: {
+    rejectUnauthorized: false
+  },
+  max: 5,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000
-})
-pool.on("connect", () => {
-  console.log("PostgreSQL connected")
+  connectionTimeoutMillis: 10000
 })
 
-pool.on("error", (err) => {
-  console.error("PostgreSQL error", err)
+pool.on("connect", () => {
+  console.log("DB connected")
 })
+
+pool.on("error", err => {
+  console.error("DB error", err.message)
+})
+
 export default pool
 
 
@@ -2849,4 +3792,10 @@ export async function addZipJob(data) {
     }
   )
 }
+
+
+================================================
+FILE: authdoc_backend/storage/exports/1a08d489-ced3-4979-a8e3-10a1fbe95726.xlsx
+================================================
+[Binary file]
 

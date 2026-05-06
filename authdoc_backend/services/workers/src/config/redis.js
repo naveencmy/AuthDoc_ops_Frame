@@ -1,45 +1,47 @@
+import "dotenv/config"
 import IORedis from "ioredis"
 
 const redis = new IORedis({
   host: process.env.REDIS_HOST,
-  port: Number(process.env.REDIS_PORT),
+  port: 6379,
 
-  username: process.env.REDIS_USERNAME || "default",
+  username: process.env.REDIS_USERNAME,
   password: process.env.REDIS_PASSWORD,
 
-  tls: process.env.REDIS_TLS === "true" ? {} : undefined,
+  tls:
+    process.env.REDIS_TLS === "true"
+      ? {}
+      : undefined,
 
-  // 🔥 CRITICAL FIXES
-  connectTimeout: 10000,
+  connectTimeout: 20000,
+
   maxRetriesPerRequest: null,
+
   enableReadyCheck: false,
 
   retryStrategy(times) {
-    const delay = Math.min(times * 200, 5000)
-    console.log(`[Redis] retry attempt ${times}, delay=${delay}`)
-    return delay
-  },
+    const delay = Math.min(times * 500, 5000)
 
-  reconnectOnError(err) {
-    console.error("[Redis] reconnectOnError:", err.message)
-    return true
+    console.log(`[Redis] retry ${times}`)
+
+    return delay
   }
 })
 
 redis.on("connect", () => {
-  console.log(" Redis connected")
+  console.log("Redis connected")
 })
 
 redis.on("ready", () => {
   console.log("Redis ready")
 })
 
-redis.on("error", err => {
-  console.error("Redis error:", err.message)
-})
-
 redis.on("close", () => {
   console.warn("Redis connection closed")
+})
+
+redis.on("error", err => {
+  console.error("[Redis] error:", err.message)
 })
 
 export default redis

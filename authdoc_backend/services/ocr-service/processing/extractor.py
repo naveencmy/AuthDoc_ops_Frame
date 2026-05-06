@@ -14,15 +14,13 @@ API_KEY = os.getenv("GEMINI_API_KEY")
 MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 
 if not API_KEY:
-    raise ValueError("GEMINI_API_KEY is required")
+    raise ValueError("GEMINI_API_KEY is missing. Please set it ")
 
 genai.configure(api_key=API_KEY)
 
 model = genai.GenerativeModel(MODEL)
 
-# -------------------------
-# UTILITIES
-# -------------------------
+
 
 def clean_text(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()

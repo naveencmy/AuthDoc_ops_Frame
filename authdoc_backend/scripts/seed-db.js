@@ -63,10 +63,10 @@ const schemas = {
 
 async function seedSchemas() {
   try {
-    console.log("🌱 Seeding database with schemas...")
+    console.log("Seeding database with schemas...")
 
     for (const [docType, schema] of Object.entries(schemas)) {
-      console.log(`\n📋 Processing ${docType}...`)
+      console.log(`\nProcessing ${docType}...`)
 
       // Check if schema already exists
       const exists = await db.query(
@@ -110,10 +110,10 @@ async function seedSchemas() {
       }
     }
 
-    console.log("\n✅ Schema seeding completed successfully!")
+    console.log("\nSchema seeding completed successfully!")
     process.exit(0)
   } catch (error) {
-    console.error("❌ Error seeding schemas:", error.message)
+    console.error("Error seeding schemas:", error.message)
     process.exit(1)
   }
 }

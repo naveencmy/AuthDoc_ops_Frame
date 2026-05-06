@@ -9,15 +9,29 @@ Directory structure:
 FILE: database.js
 ================================================
 import pkg from "pg"
+import env from "./env.js"
+
 const { Pool } = pkg
 
 const db = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 10
+  connectionString: env.DATABASE_URL,
+  ssl: {
+    require: true,
+    rejectUnauthorized: false
+  },
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000
 })
-console.log("USING DB:", process.env.DATABASE_URL)
-
-
+console.log("USING DB:", env.DATABASE_URL)
+db.connect()
+  .then(client => {
+    console.log(" DB CONNECTED")
+    client.release()
+  })
+  .catch(err => {
+    console.error("DB CONNECTION FAILED:", err)
+  })
 process.on("unhandledRejection", (err) => {
   console.error("UNHANDLED REJECTION:", err)
 })
@@ -25,6 +39,7 @@ process.on("unhandledRejection", (err) => {
 process.on("uncaughtException", (err) => {
   console.error("UNCAUGHT EXCEPTION:", err)
 })
+
 export default db
 
 
@@ -74,12 +89,26 @@ export default logger
 FILE: redis.js
 ================================================
 import IORedis from "ioredis"
-import env from "./env.js"
 
 const redis = new IORedis({
-  host: env.REDIS_HOST,
-  port: env.REDIS_PORT,
-  maxRetriesPerRequest: null
+  host: process.env.REDIS_HOST,
+  port: Number(process.env.REDIS_PORT) || 6379,
+
+  username: process.env.REDIS_USERNAME,
+  password: process.env.REDIS_PASSWORD,
+
+  tls: process.env.REDIS_TLS === "true" ? {} : undefined,
+
+  maxRetriesPerRequest: null,
+  enableReadyCheck: false
+})
+
+redis.on("connect", () => {
+  console.log("Redis connected")
+})
+
+redis.on("error", (err) => {
+  console.error("Redis error:", err.message)
 })
 
 export default redis
