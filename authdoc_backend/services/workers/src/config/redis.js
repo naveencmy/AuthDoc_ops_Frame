@@ -3,28 +3,25 @@ import IORedis from "ioredis"
 
 const redis = new IORedis({
   host: process.env.REDIS_HOST,
-  port: 6379,
+
+  port: Number(process.env.REDIS_PORT || 6379),
 
   username: process.env.REDIS_USERNAME,
+
   password: process.env.REDIS_PASSWORD,
 
-  tls:
-    process.env.REDIS_TLS === "true"
-      ? {}
-      : undefined,
+  tls: {},
 
-  connectTimeout: 20000,
+  lazyConnect: false,
 
   maxRetriesPerRequest: null,
 
   enableReadyCheck: false,
 
+  connectTimeout: 20000,
+
   retryStrategy(times) {
-    const delay = Math.min(times * 500, 5000)
-
-    console.log(`[Redis] retry ${times}`)
-
-    return delay
+    return Math.min(times * 500, 5000)
   }
 })
 
@@ -36,12 +33,12 @@ redis.on("ready", () => {
   console.log("Redis ready")
 })
 
-redis.on("close", () => {
-  console.warn("Redis connection closed")
+redis.on("error", err => {
+  console.error("[Redis Error]", err.message)
 })
 
-redis.on("error", err => {
-  console.error("[Redis] error:", err.message)
+redis.on("close", () => {
+  console.warn("Redis connection closed")
 })
 
 export default redis
