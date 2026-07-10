@@ -106,11 +106,11 @@ Before running the project locally, make sure you have:
 The API expects the following environment variables:
 
 ```env
-DATABASE_URL=postgresql://user:password@host:5432/authdoc
-OCR_SERVICE_URL=http://localhost:8000
+DATABASE_URL=postgresql://user:password@host:****/path
+OCR_SERVICE_URL=http://localhost:****
 REDIS_HOST=localhost
 REDIS_PORT=6379
-PORT=4000
+PORT=****
 ```
 
 Create your own environment file before starting the services if required by your deployment setup.
