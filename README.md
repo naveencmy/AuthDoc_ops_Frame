@@ -1,298 +1,205 @@
-# AuthDoc_Ops
-## SYstem_Design Of the Architecture && Analysis of the System Level 
-### 1️ High-Level Architecture
+# AuthDoc Ops
+
+AuthDoc Ops is a document-processing platform for ingesting batches of scanned documents, running OCR-based extraction, validating structured fields, and exporting results for downstream use. The system is designed as a modular backend with separate API, worker, and OCR services so it can scale and be maintained more easily.
+
+## Overview
+
+The platform supports the following workflow:
+
+1. Upload one or more documents as a batch.
+2. Extract and process files through an asynchronous queue.
+3. Run OCR and schema-based field extraction.
+4. Validate the extracted data.
+5. Store results and export them when requested.
+
+## Key Features
+
+- Batch upload and document processing
+- Asynchronous job handling with Redis and background workers
+- OCR-based extraction service
+- Schema-driven document validation
+- Dashboard and queue monitoring endpoints
+- Export generation for processed results
+- Structured backend organization for API, workers, and shared services
+
+## Architecture
+
+The project is organized into three main components:
+
+- API service: handles requests, routing, and business logic for batches, documents, schemas, and exports
+- Worker service: processes queued jobs for extraction, validation, and export tasks
+- OCR service: performs document analysis and extraction using Python and FastAPI
+
+A simplified view of the flow:
+
+```text
+Client / API -> Queue (Redis) -> Workers -> OCR Service / Storage -> Export
+```
+
+### System Architecture Diagram
+
+```mermaid
+flowchart LR
+    A[Client] --> B[API Service]
+    B --> C[Redis Queue]
+    C --> D[Worker Service]
+    D --> E[OCR Service]
+    D --> F[PostgreSQL]
+    D --> G[Storage]
+    D --> H[Export Service]
+```
+
+### Processing Flow Diagram
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant API as API Service
+    participant Queue as Redis Queue
+    participant Worker as Worker Service
+    participant OCR as OCR Service
+    participant DB as PostgreSQL
+
+    User->>API: Upload batch
+    API->>Queue: Enqueue processing jobs
+    Queue->>Worker: Dispatch job
+    Worker->>OCR: Send document for OCR
+    OCR-->>Worker: Extracted data
+    Worker->>DB: Save processed result
+    Worker-->>API: Job completed
+    API-->>User: Batch status / export ready
+```
+
+## Technology Stack
+
+- Node.js and Express for the backend API
+- BullMQ for job queueing
+- Redis for background job coordination
+- PostgreSQL for persistent data storage
+- Python and FastAPI for OCR-related processing
+- Docker support for service isolation and local deployment
+
+## Repository Structure
+
+```text
+authdoc_backend/
+  services/
+    api/            # Express API service
+    workers/        # Background workers
+    ocr-service/    # Python OCR service
+  shared/           # Shared constants, queues, and utilities
+  storage/          # Uploads, extracted content, and exports
+```
+
+## Prerequisites
+
+Before running the project locally, make sure you have:
+
+- Node.js 18+ installed
+- Python 3.10+ installed
+- Redis running locally or available remotely
+- PostgreSQL available and reachable
+- Optional: Docker for container-based setup
+
+## Environment Configuration
+
+The API expects the following environment variables:
+
+```env
+DATABASE_URL=postgresql://user:password@host:5432/authdoc
+OCR_SERVICE_URL=http://localhost:8000
+REDIS_HOST=localhost
+REDIS_PORT=6379
+PORT=4000
+```
+
+Create your own environment file before starting the services if required by your deployment setup.
+
+## Getting Started
+
+### 1. Install backend dependencies
+
 ```bash
-API Layer (Node.js)
-    ↓
-Batch Manager
-    ↓
-Zip Extractor
-    ↓
-Queue (Redis)
-    ↓
-Worker Pool
-        ├── OCR Service (Python)
-        ├── Language Detector
-        ├── Schema Loader
-        ├── Field Extractor
-        ├── Confidence Engine
-        ├── Validator
-    ↓
-Storage Layer (Postgres)
-    ↓
-Excel Export Service
+cd authdoc_backend
+npm install
 ```
-### And the Backend Service  API Point
+
+### 2. Install OCR service dependencies
+
 ```bash
-/authdoc-backend
-   /api
-   /workers
-   /services
-   /schemas
-   /export
-   /ocr-client
-   /db
-   /utils
+cd services/ocr-service
+pip install -r requirements.txt
 ```
-### 2️ Backend Folder Structure ( Base-Level Clean)
-Node.js Core Backend
+
+### 3. Start Redis
+
+If Redis is not already running, start it locally or through Docker.
+
 ```bash
-authdoc-enterprise/
-│
-├── src/
-│   ├── api/
-│   │   ├── batch.routes.js
-│   │   ├── document.routes.js
-│   │
-│   ├── controllers/
-│   │   ├── batch.controller.js
-│   │   ├── document.controller.js
-│   │
-│   ├── services/
-│   │   ├── zip.service.js
-│   │   ├── queue.service.js
-│   │   ├── schema.service.js
-│   │   ├── validation.service.js
-│   │   ├── confidence.service.js
-│   │   ├── export.service.js
-│   │
-│   ├── workers/
-│   │   ├── document.worker.js
-│   │
-│   ├── integrations/
-│   │   ├── ocr.client.js
-│   │
-│   ├── config/
-│   │   ├── schema/
-│   │   │   ├── marriage.schema.json
-│   │   │   ├── birth.schema.json
-│   │   │   ├── death.schema.json
-│   │   │
-│   │   ├── language/
-│   │   │   ├── marriage.fr.json
-│   │   │   ├── marriage.nl.json
-│   │
-│   ├── models/
-│   │   ├── batch.model.js
-│   │   ├── document.model.js
-│   │   ├── field.model.js
-│   │
-│   ├── utils/
-│   │   ├── logger.js
-│   │   ├── languageDetector.js
-│   │
-│   ├── app.js
-│   ├── server.js
-│
-├── python-ocr-service/
-│   ├── main.py
-│   ├── ocr_engine.py
-│   ├── requirements.txt
-│
-└── docker-compose.yml
+docker compose up -d redis
 ```
-This is production-aligned.
-### 3️ End-to-End Processing Logic
 
-Now the important part.
-STEP 1 — Batch Upload API
+### 4. Start the API service
+
 ```bash
-POST /batch/upload
-
+cd authdoc_backend
+npm run api
 ```
-Flow:
-```javascript
-1. Receive ZIP
-2. Create batch_id
-3. Store ZIP temporarily
-4. Call zip.service.extract()
-5. For each image:
-     queue.add({
-         batch_id,
-         image_path
-     })
-6. Return batch_id immediately
+
+### 5. Start the worker service
+
+```bash
+cd authdoc_backend
+npm run worker
 ```
-No blocking.
-STEP 2 — Zip Service
-zip.service.js
-```javascript
-extract(zipPath):
-    unzip to /uploads/{batch_id}/
-    filter image files only
-    return imagePaths[]
+
+### 6. Start the OCR service
+
+```bash
+cd authdoc_backend/services/ocr-service
+uvicorn main:app --host 0.0.0.0 --port 8000
 ```
-Only images.
-STEP 3 — Queue Service
 
-Use BullMQ.
-```javascript
-queue.service.js
-add(job):
-    documentQueue.add("process-document", job)
-```
-STEP 4 — Worker (Core Intelligence)
+The API will be available on the configured port, and the OCR service will run on port 8000 by default.
 
-document.worker.js
+## Main API Endpoints
 
-This is where real logic happens.
+The backend exposes the following route groups:
 
-Pseudo flow:
-```javascript
-process(job):
+- POST /api/batches/upload: upload a batch archive for processing
+- GET /api/batches: list batches
+- GET /api/batches/:batchId: get batch details
+- GET /api/documents: list documents
+- GET /api/documents/batch/:batchId: list documents for a batch
+- POST /api/exports: create an export job
+- GET /api/exports: list export jobs
+- GET /health: health check endpoint
+- /admin/queues: queue dashboard routes
 
-    const { batch_id, image_path } = job.data
+## Processing Flow
 
-    // 1. First we Call the  OCR microservice as do the ligth ocr to find the the what type of file is this (index/blank/title / birth/death/marriage)
-    const ocrResult = await ocrClient.extract(image_path)
+1. A batch is uploaded through the API.
+2. Files are staged in the storage area.
+3. Jobs are queued for background processing.
+4. Workers process each item and call the OCR service.
+5. Extracted information is validated and saved.
+6. Export tasks can generate downloadable results.
 
-    // 2. Detect language from the before ocr process by compara with the our schema data's
-    const language = detectLanguage(ocrResult.raw_text)
+## Development Notes
 
-    // 3. After detect that it is what language and which type of file is this then we Load schema
-    const schema = schemaService.load("marriage")
+- The API layer is intentionally separated from the worker layer to keep processing asynchronous and resilient.
+- The OCR service is separate so document analysis can evolve independently.
+- Redis acts as the coordination layer between incoming requests and background jobs.
 
-    // 4. from the schema it get the data that which field that ocr need to extract in the which in which by Load language keywords
-    const keywordMap = schemaService.loadLanguage("marriage", language)
+## Contribution
 
-    // 5.  finally Extract fields and passed to the compute departments
-    const extractedFields = extractFields(
-        ocrResult.raw_text,
-        schema,
-        keywordMap
-    )
+Contributions are welcome. If you would like to improve the system, please:
 
-    // 6. Compute confidence  check the data is ok or not , error by the calculate it's extracted quality 
-    const scoredFields = confidenceService.score(
-        extractedFields,
-        ocrResult.confidence_map
-    )
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request with a clear summary
 
-    // 7. Validate
-    const validatedFields = validationService.validate(
-        scoredFields,
-        schema
-    )
+## License
 
-    // 8. Store in DB
-    saveDocumentRecord(batch_id, validatedFields)
-```
-Everything modular.
-### 4️ OCR Microservice Structure (Python)
-
-Keep it clean.
-
-main.py
-```python
-@app.post("/extract")
-async def extract(file: UploadFile):
-
-    image = load_image(file)
-
-    result = paddle_ocr(image)
-
-    return {
-        "raw_text": result.text,
-        "confidence_map": result.confidence
-    }
-```
-No validation logic here.
-### 5️ Field Extraction Logic (Core Design)
-
-You DO NOT hardcode.
-
-Use:
-```py
-extractFields(rawText, schema, keywordMap)
-```
-Algorithm:
-
-For each field in schema:
-
-    Find keyword in rawText
-
-    Extract text near keyword
-
-    Normalize (date format, name format)
-
-    Return value
-
-If not found:
-
-    value = null
-
-### 6️ Confidence Engine
-```javascript 
-score(fields, confidence_map):
-
-    for each field:
-        if field.value exists:
-            compute average OCR confidence
-        else:
-            confidence = 0
-
-        if confidence > 0.85:
-            status = VERIFIED
-        else if confidence > 0.6:
-            status = FLAGGED
-        else:
-            status = MISSING
-```
-This is realistic.
-### 7️ Validation Engine
-
-Based on schema:
-```javascript
-validate(fields, schema):
-
-    for each required field:
-        if value is null:
-            status = FLAGGED
-```
-Optional fields:
-Leave empty.
-### 8️ Excel Export Engine
-
-export.service.js
-```javascript
-generateExcel(batch_id):
-
-    load template
-    for each document:
-        map fields → template columns
-        write row
-    save file
-    return download link
-```
-Template mapping loaded from JSON.
-
-Never hardcode column names.
-### 9️ Horizontal Scaling Strategy
-
-You scale by:
-
-    Increasing worker count
-
-    Running multiple worker instances
-
-    Using Redis queue
-
-    Dockerizing services
-
-No architecture changes required.
-### 10 Failure Handling Strategy
-```powershell
-You must handle:
-
-    Corrupted image
-
-    OCR failure
-
-    Language detection failure
-```
-If OCR fails:
-
-Store document with status = ERROR
-Continue processing batch
-
-Never crash entire batch.
+No license has been declared for this repository yet. If you plan to share or distribute the project publicly, consider adding a license file.
